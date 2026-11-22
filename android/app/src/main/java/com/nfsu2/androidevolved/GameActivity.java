@@ -40,6 +40,7 @@ public final class GameActivity extends NativeActivity {
     private static native boolean nativeGamepadUsed();
     private static native String nativeTakeNotice();
     private static native int[] nativeDriftStatus();
+    private static native int[] nativeGhostStatus();
     private final boolean[] touchKeys=new boolean[256],sentKeys=new boolean[256];
     private boolean tiltLeft,tiltRight,tiltEnabled,tiltCalibrate=true;
     private float tiltFiltered,tiltNeutral,tiltSensitivity=1;
@@ -138,6 +139,7 @@ public final class GameActivity extends NativeActivity {
             // Playing on with the pad after a touch revealed the controls hides them again.
             if(nativeGamepadUsed())touchControls.gamepadUsed();
             touchControls.setDrift(nativeDriftStatus());
+            touchControls.setGhost(nativeGhostStatus());
             if("server.dll".equals(nativeTakeNotice()))showNotice("Course LAN","Ton server.dll n'est pas la version utilisée pour préparer cette appli : ce téléphone ne peut donc pas créer de course LAN. Tu peux quand même rejoindre une course créée par un autre joueur. Pour en créer une, copie dans le dossier nfsu2 le server.dll de l'installation PC d'où vient l'exécutable du jeu.");
             touchControls.postDelayed(this,250);
         }

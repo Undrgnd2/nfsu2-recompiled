@@ -5,3 +5,5 @@
 0x0056DDD0  drift mode: DriftManager's leaderboard, skipped in free roam (drift.c)
 0x004C85D0  drift mode: the style points' drift branch, skipped in free roam (drift.c)
 0x004AC120  drift mode: FEngHud::ShowNiftyDriftyMessage, skipped in free roam (drift.c)
+0x005B2610  ghost mode: a touching pair of collision bodies, let through for the game's cars (ghost.c)
+0x0044AC10  ghost mode: the drive camera's car under its eye, the cars passing through left out (ghost.c)

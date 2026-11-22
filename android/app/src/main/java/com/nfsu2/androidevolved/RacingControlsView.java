@@ -124,6 +124,7 @@ final class RacingControlsView extends View {
             add(128,16,46,"sms",0x0f);    // Leer SMS: Tab
             add(184,16,46,"reset",0x13);  // Reiniciar coche: R
             add(240,16,46,"drift",0xF1);  // Mode drift en exploration (drift.c), aucune touche du jeu
+            add(296,16,46,"ghost",0xF2);  // Mode fantôme en exploration (ghost.c), aucune touche du jeu
             if(style.equals("classic")) {
                 add(20,bottom-92,92,"left",0xcb);
                 add(124,bottom-92,92,"right",0xcd);
@@ -168,6 +169,7 @@ final class RacingControlsView extends View {
         if(editing)canvas.drawColor(0x55000000);
         for(Control c:controls)drawControl(canvas,c);
         drawDrift(canvas);
+        drawGhost(canvas);
         if(editing) {
             float w=getWidth()/scale;
             drawToolbarButton(canvas,new RectF(w/2-250,18,w/2-150,58),"DÉFAUT");
@@ -251,6 +253,7 @@ final class RacingControlsView extends View {
                 glyph(canvas,"P",cx,cy,s*.9f,on);break;
             case "nitro": glyph(canvas,"N₂O",cx,cy,s*.9f,on);break;
             case "drift": glyph(canvas,"DRIFT",cx,cy,s*.55f,on,driftOn()?0xFF3FC1F5:0);break;
+            case "ghost": glyph(canvas,"GHOST",cx,cy,s*.5f,on,(ghost[0]&1)!=0?0xFF3FC1F5:0);break;
             case "accept":
                 path.reset();path.moveTo(cx-s*.7f,cy);path.lineTo(cx-s*.15f,cy+s*.55f);path.lineTo(cx+s*.75f,cy-s*.5f);
                 canvas.drawPath(path,line);break;
@@ -314,6 +317,24 @@ final class RacingControlsView extends View {
         glyph(canvas,head,cx,y+11,note?14:20,false,0xFF3FC1F5);
         if(!body.isEmpty())glyph(canvas,body,cx,y+36,drift[5]>0?18:13,false,drift[5]>0?0xFFFFFFFF:0xCCFFFFFF);
     }
+    // Ghost mode (nativeGhostStatus): flags (1 chosen, 2 active, 4 pressed outside free roam, 8 nitrous gained),
+    // cars passed through, nitrous per car (%).
+    private int[] ghost=new int[3];
+    void setGhost(int[] status) {
+        if(status==null||status.length<3||java.util.Arrays.equals(status,ghost))return;
+        ghost=status;if(racing)invalidate();
+    }
+    private void drawGhost(Canvas canvas) {
+        boolean note=(ghost[0]&4)!=0;
+        if(!racing||editing||((ghost[0]&1)==0&&!note))return;
+        float w=getWidth()/scale,x=w-24,y=bottomOfDrift();
+        String head=note?"Mode fantôme : uniquement en exploration":(ghost[0]&8)!=0?"+"+ghost[2]+" % N₂O":"FANTÔME";
+        text.setTextSize(15);float tw=text.measureText(head)/2+14,cx=note?w/2:x-tw;
+        fill.setColor((ghost[0]&8)!=0?0xD01E7A4A:0xB00A1628);canvas.drawRoundRect(cx-tw,y,cx+tw,y+26,10,10,fill);
+        line.setColor(0x993FC1F5);line.setStrokeWidth(1.5f);canvas.drawRoundRect(cx-tw,y,cx+tw,y+26,10,10,line);
+        glyph(canvas,head,cx,y+13,15,false,(ghost[0]&8)!=0?0xFFFFFFFF:0xFF3FC1F5);
+    }
+    private float bottomOfDrift() {return 84;}
     private static String fmt(int value) {return String.format(java.util.Locale.FRANCE,"%,d",value);}
     private void drawToolbarButton(Canvas canvas,RectF area,String label) {
         fill.setColor(0xE014202C);canvas.drawRoundRect(area,12,12,fill);

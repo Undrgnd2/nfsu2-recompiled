@@ -13,6 +13,13 @@ void nfs_drift_hook(uint32_t va);           /* hook sites 0x482279, 0x471B95 */
 void nfs_drift_ov_leaderboard(void);        /* wraps 0x56DDD0, 0x4C85D0, 0x4AC120 */
 void nfs_drift_ov_style_points(void);
 void nfs_drift_ov_message(void);
+/* Ghost mode in free roam (ghost.c): the game's cars pass through the player's car, each one gives nitrous. */
+void nfs_ghost_frame(void);                 /* guest thread, after each Present */
+void nfs_ghost_press(void);                 /* the GHOST touch button (any thread) */
+void nfs_ghost_status(int out[3]);          /* flags (1 chosen, 2 active now, 4 outside free roam, 8 nitrous just
+                                               gained), cars passed through, nitrous per car (%) */
+void nfs_ghost_ov_contact(void);            /* wraps 0x5B2610, 0x44AC10 */
+void nfs_ghost_ov_camera_cars(void);
 #ifdef __cplusplus
 }
 #endif
