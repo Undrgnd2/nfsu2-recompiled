@@ -89,19 +89,19 @@ final class GpuAdvice {
     static String advice(Family family) {
         switch (family) {
             case ADRENO_TURNIP:
-                return "Recomendado para tu Snapdragon: Turnip (Mesa) para Adreno 6xx/7xx si el driver del sistema va lento o con errores gráficos. PanVK no sirve para Adreno.";
+                return "Conseillé pour ton Snapdragon : Turnip (Mesa) pour Adreno 6xx/7xx si le pilote du système est lent ou affiche des erreurs graphiques. PanVK ne fonctionne pas sur Adreno.";
             case ADRENO_SYSTEM:
-                return "Recomendado: el driver del sistema. Turnip para esta Adreno es experimental.";
+                return "Conseillé : le pilote du système. Turnip est expérimental sur cet Adreno.";
             case MALI_VALHALL:
-                return "Recomendado para tu GPU Mali: PanVK (Mesa) si el driver del sistema va lento o con errores gráficos. Turnip no sirve para Mali.";
+                return "Conseillé pour ton GPU Mali : PanVK (Mesa) si le pilote du système est lent ou affiche des erreurs graphiques. Turnip ne fonctionne pas sur Mali.";
             case MALI_OLDER:
-                return "Recomendado: el driver del sistema. PanVK en Mali-G52/G72/G76 o más antiguas es experimental, y Turnip no sirve para Mali.";
+                return "Conseillé : le pilote du système. PanVK est expérimental sur les Mali-G52/G72/G76 et plus anciens, et Turnip ne fonctionne pas sur Mali.";
             case POWERVR:
-                return "Recomendado: el driver del sistema. No hay un driver alternativo estable para PowerVR; Turnip y PanVK no funcionan en esta GPU.";
+                return "Conseillé : le pilote du système. Il n'existe pas de pilote alternatif stable pour PowerVR ; Turnip et PanVK ne fonctionnent pas sur ce GPU.";
             case XCLIPSE:
-                return "Recomendado: el driver del sistema. Turnip y PanVK no funcionan en las GPU Xclipse de Samsung.";
+                return "Conseillé : le pilote du système. Turnip et PanVK ne fonctionnent pas sur les GPU Xclipse de Samsung.";
             default:
-                return "Recomendado: el driver del sistema.";
+                return "Conseillé : le pilote du système.";
         }
     }
 

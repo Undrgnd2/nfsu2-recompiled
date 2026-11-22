@@ -71,24 +71,24 @@ public final class GameActivity extends NativeActivity {
         }
     }
     private void showTiltOptions() {
-        if(tiltSensor==null) {Toast.makeText(this,"Este dispositivo no dispone de acelerómetro",Toast.LENGTH_LONG).show();return;}
+        if(tiltSensor==null) {Toast.makeText(this,"Cet appareil n'a pas d'accéléromètre",Toast.LENGTH_LONG).show();return;}
         android.content.SharedPreferences options=getSharedPreferences("touch_layouts_v1",MODE_PRIVATE);
         LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(24),dp(8),dp(24),dp(8));
-        CheckBox enabled=new CheckBox(this);enabled.setText("Girar inclinando el celular");enabled.setChecked(tiltEnabled);form.addView(enabled);
-        CheckBox invert=new CheckBox(this);invert.setText("Invertir dirección");invert.setChecked(tiltInvert);form.addView(invert);
-        TextView label=new TextView(this);label.setText("Sensibilidad: "+tiltSensitivity+"×");form.addView(label);
+        CheckBox enabled=new CheckBox(this);enabled.setText("Tourner en inclinant le téléphone");enabled.setChecked(tiltEnabled);form.addView(enabled);
+        CheckBox invert=new CheckBox(this);invert.setText("Inverser la direction");invert.setChecked(tiltInvert);form.addView(invert);
+        TextView label=new TextView(this);label.setText("Sensibilité : "+tiltSensitivity+"×");form.addView(label);
         android.widget.SeekBar sensitivity=new android.widget.SeekBar(this);sensitivity.setMax(30);sensitivity.setProgress(Math.round(tiltSensitivity*10)-10);form.addView(sensitivity);
         sensitivity.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             public void onStartTrackingTouch(android.widget.SeekBar bar) {}public void onStopTrackingTouch(android.widget.SeekBar bar) {}
-            public void onProgressChanged(android.widget.SeekBar bar,int progress,boolean user) {label.setText("Sensibilidad: "+((progress+10)/10f)+"×");}
+            public void onProgressChanged(android.widget.SeekBar bar,int progress,boolean user) {label.setText("Sensibilité : "+((progress+10)/10f)+"×");}
         });
-        TextView help=new TextView(this);help.setText("Sostén el celular en tu posición de juego al aplicar. La inclinación activa izquierda/derecha; los pedales siguen siendo táctiles.");form.addView(help);
-        new AlertDialog.Builder(this).setTitle("Conducción por inclinación").setView(form)
-                .setPositiveButton("Aplicar y calibrar",(dialog,which)->{
+        TextView help=new TextView(this);help.setText("Tiens le téléphone dans ta position de jeu au moment d'appliquer. L'inclinaison gère gauche/droite ; les pédales restent tactiles.");form.addView(help);
+        new AlertDialog.Builder(this).setTitle("Conduite par inclinaison").setView(form)
+                .setPositiveButton("Appliquer et calibrer",(dialog,which)->{
                     tiltEnabled=enabled.isChecked();tiltInvert=invert.isChecked();tiltSensitivity=(sensitivity.getProgress()+10)/10f;
                     options.edit().putBoolean("tilt.enabled",tiltEnabled).putBoolean("tilt.invert",tiltInvert).putFloat("tilt.sensitivity",tiltSensitivity).apply();
                     updateTiltSensor();
-                }).setNegativeButton("Cancelar",null).show();
+                }).setNegativeButton("Annuler",null).show();
     }
     private android.hardware.input.InputManager inputManager;
     private final android.hardware.input.InputManager.InputDeviceListener gamepadListener=new android.hardware.input.InputManager.InputDeviceListener() {
@@ -136,13 +136,13 @@ public final class GameActivity extends NativeActivity {
             touchControls.setGameMode(nativeDrivingControls());
             // Playing on with the pad after a touch revealed the controls hides them again.
             if(nativeGamepadUsed())touchControls.gamepadUsed();
-            if("server.dll".equals(nativeTakeNotice()))showNotice("Carrera LAN","Tu server.dll no es la versión con la que se preparó esta app, así que este teléfono no puede crear una carrera LAN. Sí puedes unirte a una que cree otro jugador. Para crearla, copia en la carpeta nfsu2 el server.dll de la misma instalación de PC de donde sacaste el ejecutable del juego.");
+            if("server.dll".equals(nativeTakeNotice()))showNotice("Course LAN","Ton server.dll n'est pas la version utilisée pour préparer cette appli : ce téléphone ne peut donc pas créer de course LAN. Tu peux quand même rejoindre une course créée par un autre joueur. Pour en créer une, copie dans le dossier nfsu2 le server.dll de l'installation PC d'où vient l'exécutable du jeu.");
             touchControls.postDelayed(this,250);
         }
     };
     private void showNotice(String title,String text){
         new android.app.AlertDialog.Builder(this,android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle(title).setMessage(text).setPositiveButton("Aceptar",null).show();
+                .setTitle(title).setMessage(text).setPositiveButton("OK",null).show();
     }
     private static native void nativeTypeText(String value, boolean replace);
     private static native void nativePointer(float x, float y, int phase);
@@ -165,31 +165,31 @@ public final class GameActivity extends NativeActivity {
                 .setSingleChoiceItems(option.labels,selected,(dialog,which)->{
                     GameOptions.set(this,GameOptions.FPS,option.values[which]);
                     nativeFrameLimit(Integer.parseInt(option.values[which]));dialog.dismiss();
-                }).setNegativeButton("Cancelar",null).show();
+                }).setNegativeButton("Annuler",null).show();
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     private void showTextInput() {
         EditText name = new EditText(this);
         name.setSingleLine(true);
-        name.setHint("Nombre, correo o contraseña");
+        name.setHint("Nom, e-mail ou mot de passe");
         name.setFilters(new InputFilter[]{new InputFilter.LengthFilter(40)});
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD |
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         name.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         CheckBox replace = new CheckBox(this);
-        replace.setText("Reemplazar el nombre actual");replace.setChecked(true);
+        replace.setText("Remplacer le nom actuel");replace.setChecked(true);
         LinearLayout form = new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), 0, dp(20), 0);form.addView(name);form.addView(replace);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Escribir en el juego")
+                .setTitle("Écrire dans le jeu")
                 .setView(form)
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Escribir", null)
+                .setNegativeButton("Annuler", null)
+                .setPositiveButton("Écrire", null)
                 .create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
             String value = name.getText().toString();
             if (value.isEmpty() || !value.matches("[A-Za-z0-9 .,=/;_+?:!@#$%&*()-]{1,40}")) {
-                name.setError("Hasta 40 caracteres: letras sin tildes, números y . , - _ @ + ! # $ % & * ( ) = ? / ; :");
+                name.setError("40 caractères max : lettres sans accents, chiffres et . , - _ @ + ! # $ % & * ( ) = ? / ; :");
                 return;
             }
             nativeTypeText(value, replace.isChecked());
@@ -238,7 +238,7 @@ public final class GameActivity extends NativeActivity {
         status.setBackgroundColor(0xb0000000);
         status.setTextSize(18);
         status.setPadding(24, 16, 24, 16);
-        status.setText("NFSU2 Android Evolved\nComprobando memoria interna/nfsu2…");
+        status.setText("UNDRGND2\nVérification de la mémoire interne/nfsu2…");
         // NativeActivity gives its main window surface to Vulkan; use a separate
         // non-interactive popup surface for the diagnostic text.
         statusWindow = new PopupWindow(status, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -253,13 +253,13 @@ public final class GameActivity extends NativeActivity {
     public void setStatus(String message) {
         runOnUiThread(() -> {
             if (statusHideTask != null) status.removeCallbacks(statusHideTask);
-            if (message.contains("Ejecutando entrada CRT")) {
-                status.setText("NFSU2 Android Evolved\n" + message);
+            if (message.contains("entrée CRT")) {
+                status.setText("UNDRGND2\n" + message);
                 statusHideTask = () -> {statusHidden=true;if(statusWindow.isShowing())statusWindow.dismiss();};
                 status.postDelayed(statusHideTask, 8000);
             } else {
                 statusHidden=false;
-                status.setText("NFSU2 Android Evolved\n" + message);
+                status.setText("UNDRGND2\n" + message);
                 if (!statusWindow.isShowing() && hasWindowFocus())
                     statusWindow.showAtLocation(getWindow().getDecorView(), Gravity.TOP | Gravity.START, 0, 0);
             }
@@ -329,7 +329,7 @@ public final class GameActivity extends NativeActivity {
                     && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
         if (!allowed && !requested) {
             requested = true;
-            Toast.makeText(this, "Permite acceso a archivos para leer la carpeta nfsu2 de la memoria interna", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Autorise l'accès aux fichiers pour lire le dossier nfsu2 de la mémoire interne", Toast.LENGTH_LONG).show();
             if (Build.VERSION.SDK_INT >= 30) {
                 startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                         Uri.parse("package:" + getPackageName())));

@@ -24,25 +24,25 @@ final class GameOptions {
             TEXTURES = "textures", MINIMAP = "minimap", LANGUAGE = "language";
 
     static final Option[] ALL = {
-            new Option(RESOLUTION, "Resolución interna", "75",
+            new Option(RESOLUTION, "Résolution interne", "75",
                     new String[] {"100", "75", "50", "720"},
-                    new String[] {"Nativa · máxima calidad", "75% · equilibrada", "50% · máximo rendimiento",
+                    new String[] {"Native · qualité maximale", "75 % · équilibrée", "50 % · performances maximales",
                             "1280×720 · 16:9"}),
-            new Option(FPS, "Límite de FPS", "120",
+            new Option(FPS, "Limite de FPS", "120",
                     new String[] {"30", "60", "90", "120", "0"},
-                    new String[] {"30 FPS · ahorra batería", "60 FPS", "90 FPS", "120 FPS", "Sin límite"}),
-            new Option(WIDESCREEN, "Pantalla panorámica", "on",
+                    new String[] {"30 FPS · économie de batterie", "60 FPS", "90 FPS", "120 FPS", "Sans limite"}),
+            new Option(WIDESCREEN, "Écran large", "on",
                     new String[] {"on", "off"},
-                    new String[] {"HUD y cámara corregidos", "Original 4:3 estirado"}),
-            new Option(MINIMAP, "Minimapa", "top",
+                    new String[] {"HUD et caméra corrigés", "4:3 d'origine étiré"}),
+            new Option(MINIMAP, "Mini-carte", "top",
                     new String[] {"top", "bottom"},
-                    new String[] {"Arriba a la izquierda", "Abajo a la izquierda (original)"}),
-            new Option(LATENCY, "Sincronía CPU/GPU", "2",
+                    new String[] {"En haut à gauche", "En bas à gauche (d'origine)"}),
+            new Option(LATENCY, "Synchro CPU/GPU", "2",
                     new String[] {"2", "1"},
-                    new String[] {"Rendimiento · CPU y GPU en paralelo", "Baja latencia · menos FPS"}),
-            new Option(TEXTURES, "Texturas comprimidas", "auto",
+                    new String[] {"Performances · CPU et GPU en parallèle", "Faible latence · moins de FPS"}),
+            new Option(TEXTURES, "Textures compressées", "auto",
                     new String[] {"auto", "cpu"},
-                    new String[] {"Automático · GPU si las soporta", "Convertir en CPU · compatibilidad"}),
+                    new String[] {"Automatique · GPU si compatible", "Conversion par le CPU · compatibilité"}),
     };
 
     private static final String PREFS = "nfsu2_game";
@@ -69,7 +69,7 @@ final class GameOptions {
         prefs(context).edit().putString(key, value).apply();
     }
 
-    static final String ONLINE_SERVER = "online_server", DEFAULT_ONLINE_SERVER = "eahub.eu";
+    static final String ONLINE_SERVER = "online_server", DEFAULT_ONLINE_SERVER = "undrgnd2.eu";
 
     /** EA Nation replacement server: the game's *.ea.com hosts resolve to this name or IPv4 address. */
     static String onlineServer(Context context) {
@@ -83,7 +83,7 @@ final class GameOptions {
 
     /** The game's language folder name (LANGUAGES/<file>.bin) chosen in the launcher. */
     static String language(Context context) {
-        return prefs(context).getString(LANGUAGE, "Spanish");
+        return prefs(context).getString(LANGUAGE, "French");
     }
 
     /** Render size for the selected resolution on a display of width × height (landscape). */
