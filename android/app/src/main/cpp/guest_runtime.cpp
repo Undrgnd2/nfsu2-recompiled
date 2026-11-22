@@ -34,6 +34,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <cerrno>
+#include <cstdlib>
+#include <strings.h>
 #include <deque>
 #ifdef __ANDROID__
 #include <aaudio/AAudio.h>
@@ -518,6 +520,31 @@ void bindImports(uint32_t base, uint32_t size, uint32_t directoryRva, uint32_t d
     }
     if (!terminated) throw GuestStop("Unterminated PE import descriptors");
 }
+// The European game's Vauxhall/Opel Corsa (car type 7) and Peugeot 106 (6)
+// in the North American SPEED2.EXE v1.2.  The game folder must hold
+// CARS\CORSA and CARS\PEUGOT106 (they ship with the European release).
+// The exe keeps them off the car lot and every car select through the table
+// of car types its region does not sell: region 0's {7, 6} at 0x7F7C48
+// (read by 0x5022C0).  Emptying that table (-1) lists them, the same as
+// NFSU2 Extra Options' UnlockRegionalCars.  Applied once the image is
+// mapped and before the CRT runs, so no game code has read it yet.
+// NFSU2_REGIONAL_CARS=0 turns it off.
+static void unlockRegionalCars() {
+    const char* env=std::getenv("NFSU2_REGIONAL_CARS");
+    if (env && (*env=='0' || !strcasecmp(env,"off") || !strcasecmp(env,"false"))) {
+        NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Regional cars: off (NFSU2_REGIONAL_CARS)");
+        return;
+    }
+    constexpr uint32_t kLockedNA=0x007f7c48;
+    if (read32(kLockedNA)!=7 || read32(kLockedNA+4)!=6) {
+        NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Regional cars: lock table %08x %08x is not the expected one, left alone",
+            read32(kLockedNA),read32(kLockedNA+4));
+        return;
+    }
+    write32(kLockedNA,0xffffffffu);
+    write32(kLockedNA+4,0xffffffffu);
+    NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Regional cars: Corsa and 106 unlocked (lock table at %08x cleared)",kLockedNA);
+}
 void loadImage(const char* path) {
     std::ifstream stream(path,std::ios::binary);
     if (!stream) throw GuestStop("Cannot open game PE");
@@ -549,6 +576,7 @@ void loadImage(const char* path) {
     bindImports(imageBase,imageSize,directory.VirtualAddress,directory.Size);
     NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Guest PE mapped: base=%08x size=%08x entry=%08x; %zu imports bound; %u lifted functions",
         imageBase,imageSize,entry,imports.size(),recomp_dispatch_count);
+    unlockRegionalCars();
 }
 uint32_t callGuest(uint32_t va, const uint32_t* args, size_t count, uint32_t cleanup, bool threadStart) {
     State saved; saved.save();
