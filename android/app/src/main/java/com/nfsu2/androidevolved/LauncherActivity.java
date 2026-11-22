@@ -134,13 +134,14 @@ public final class LauncherActivity extends Activity {
         header.setOrientation(LinearLayout.VERTICAL);
         ImageView banner = new ImageView(this);
         banner.setImageResource(R.drawable.undrgnd2_banner);
-        banner.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        banner.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        banner.setAdjustViewBounds(true);   // the whole banner, CREW line included: its height follows the width
         GradientDrawable bannerFrame = new GradientDrawable();
         bannerFrame.setCornerRadius(dp(8));
         bannerFrame.setStroke(dp(1), 0x553FC1F5);
         banner.setBackground(bannerFrame);
         banner.setClipToOutline(true);
-        header.addView(banner, new LinearLayout.LayoutParams(-1, dp(112)));
+        header.addView(banner, new LinearLayout.LayoutParams(-1, -2));
         TextView subtitle = label("Need for Speed Underground 2 · version Android", 13, 0xCCFFFFFF, false);
         subtitle.setPadding(0, dp(6), 0, 0);
         header.addView(subtitle);
