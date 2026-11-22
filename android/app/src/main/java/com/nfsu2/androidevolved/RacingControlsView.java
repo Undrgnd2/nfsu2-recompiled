@@ -27,8 +27,13 @@ final class RacingControlsView extends View {
     /** Touches outside every control drive the game's mouse: x/y as fractions of the view, phase 0 down, 1 move, 2 up. */
     interface Pointer { void touch(float x, float y, int phase); }
     // Special controls that do not map to a DirectInput scan code.
-    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5;
-    private static final int ROUND = 0, PEDAL = 1, WHEEL = 2;
+    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6;
+    private static final int ROUND = 0, PEDAL = 1, WHEEL = 2, RECT = 3, PILL = 4, KEY = 5;
+    /** undrgnd2.eu's colour for a pressed or lit control (sampled from the game's menus). */
+    private static final int LIME = 0xFFC8F088;
+    /** How many controls hold each key: Nitro holds Gas too, and either one lifting must not let the other's go. */
+    private final int[] keyCount = new int[256];
+    private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Keys keys;
     private Pointer pointer;
     private int pointerId=-1;
@@ -60,6 +65,8 @@ final class RacingControlsView extends View {
         final int scan, shape, color;
         final RectF original;
         String id;
+        /** a second key held with the first (Nitro: Gas too); a group a finger slides within (1 steering, 2 pedals) */
+        int scan2 = -1, group;
         int held;
         float steering;
         Control(float x, float y, float w, float h, int shape, String icon, int scan, int color) {
@@ -69,11 +76,14 @@ final class RacingControlsView extends View {
     RacingControlsView(Context context, Keys keys, Runnable textInput, Runnable configureTilt, Runnable configureFrameLimit) {
         super(context); this.keys=keys; this.textInput=textInput;
         layouts=context.getSharedPreferences("touch_layouts_v1",Context.MODE_PRIVATE);
-        style=layouts.getString("style","classic");this.configureTilt=configureTilt;this.configureFrameLimit=configureFrameLimit;
+        style=layouts.getString("style","undrgnd2");
+        // Once: undrgnd2.eu's controls replace the style picked before they existed (Options > Style brings it back).
+        if(!layouts.getBoolean("undrgnd2_default",false)) {style="undrgnd2";layouts.edit().putString("style",style).putBoolean("undrgnd2_default",true).apply();}this.configureTilt=configureTilt;this.configureFrameLimit=configureFrameLimit;
         setContentDescription("Commandes du jeu");
         setHapticFeedbackEnabled(true);
         line.setStyle(Paint.Style.STROKE);line.setStrokeCap(Paint.Cap.ROUND);line.setStrokeJoin(Paint.Join.ROUND);
         text.setTextAlign(Paint.Align.CENTER);text.setTypeface(Typeface.create("sans-serif-condensed",Typeface.BOLD));
+        label.setTextAlign(Paint.Align.CENTER);label.setTypeface(Typeface.create(Typeface.SANS_SERIF,Typeface.BOLD_ITALIC));
     }
     private void add(float x, float y, float size, String icon, int scan) {add(x,y,size,size,ROUND,icon,scan,0);}
     private void add(float x, float y, float w, float h, int shape, String icon, int scan, int color) {
@@ -84,7 +94,60 @@ final class RacingControlsView extends View {
         float cx=layouts.getFloat(c.id+".x",c.area.centerX()/(getWidth()/scale))*(getWidth()/scale);
         float cy=layouts.getFloat(c.id+".y",c.area.centerY()/(getHeight()/scale))*(getHeight()/scale);
         c.area.set(cx-w*factor/2,cy-h*factor/2,cx+w*factor/2,cy+h*factor/2);
+        // Nitro gives gas too, in every style, as on undrgnd2.eu: one thumb on N₂O drives on.
+        if(racing&&scan==0x38)c.scan2=0xc8;
         clamp(c);controls.add(c);
+    }
+    private void addU(float x, float y, float w, float h, int shape, String icon, int scan, int scan2, int group) {
+        add(x,y,w,h,shape,icon,scan,0);
+        Control c=controls.get(controls.size()-1);c.scan2=scan2;c.group=group;
+    }
+    /**
+     * undrgnd2.eu's touch controls (nfsu2-web web/src/app/touch.ts and style.css), in dp from the screen's edges:
+     * the small buttons in a row at the top, the steering (◀ ▶ or a thumb stick) bottom left, Brake and Gas bottom
+     * right with Nitro over Gas (Nitro holds Gas too) and the handbrake over Brake; the menus' D-pad bottom left and
+     * Back over OK bottom right.  A finger slides between the steering's buttons and between the pedals.
+     */
+    private void layoutUndrgnd(float w, float h) {
+        final float L=12,T=12,B=12,R=12;
+        boolean stick=layouts.getString("steer","buttons").equals("stick");
+        if(racing) {
+            add(L,T,48,"settings",EDIT);
+            add(L+56,T,48,"pause",1);
+            add(L+112,T,48,"camera",0x2e);
+            add(L+168,T,48,"reset",0x13);
+            add(L+224,T,48,"map",0x32);
+            add(L+280,T,48,"sms",0x0f);
+            add(L+336,T,48,"drift",0xF1);   // drift.c
+            add(L+392,T,48,"ghost",0xF2);   // ghost.c
+            add(w-R-48,T,48,stick?"stick":"buttons",STEERMODE);
+            add(w-R-104,T,48,"menu",MODE);
+            if(stick) add(L,h-B-120,120,120,WHEEL,"stick",STICK,0);
+            else {
+                addU(L,h-B-104,80,104,RECT,"left",0xcb,-1,1);
+                addU(L+88,h-B-104,80,104,RECT,"right",0xcd,-1,1);
+            }
+            if(layouts.getBoolean("gears",false)) {
+                float gb=stick?132:112;
+                addU(L,h-B-gb-56,80,56,RECT,"down",0x1d,-1,0);
+                addU(L+88,h-B-gb-56,80,56,RECT,"up",0x2a,-1,0);
+            }
+            addU(w-R-84,h-B-148,84,148,RECT,"t:Gaz",0xc8,-1,2);
+            addU(w-R-92-84,h-B-104,84,104,RECT,"t:Freiner",0xd0,-1,2);
+            addU(w-R-12-60,h-B-160-60,60,60,ROUND,"t:N₂O",0x38,0xc8,2);
+            addU(w-R-106-56,h-B-116-56,56,56,ROUND,"t:Frein\nà main",0x39,-1,0);
+        } else {
+            final float k=52;
+            add(L,T,48,"settings",EDIT);
+            add(w-R-48,T,48,"wheel",MODE);
+            addU(L+k+4,h-B-2*(k+4)-k,k,k,KEY,"up",0xc8,-1,0);
+            addU(L,h-B-(k+4)-k,k,k,KEY,"left",0xcb,-1,0);
+            addU(L+2*(k+4),h-B-(k+4)-k,k,k,KEY,"right",0xcd,-1,0);
+            addU(L+k+4,h-B-k,k,k,KEY,"down",0xd0,-1,0);
+            addU(w-R-136,h-B-k-12-k,136,k,PILL,"t:Retour",1,-1,0);
+            addU(w-R-136,h-B-k,136,k,PILL,"t:OK",0x1c,-1,0);
+            add(w/2-23,h-B-46,46,"keyboard",TEXT);
+        }
     }
     private void clamp(Control c) {
         float w=getWidth()/scale,h=getHeight()/scale;
@@ -115,6 +178,7 @@ final class RacingControlsView extends View {
         if(getWidth()==0)return;
         scale=Math.min(getResources().getDisplayMetrics().density, getWidth()/820f);
         float w=getWidth()/scale, h=getHeight()/scale, bottom=h-20;
+        if(style.equals("undrgnd2")) {layoutUndrgnd(w,h);invalidate();return;}
         add(w-62,16,46,"settings",EDIT);
         add(w-118,16,46,racing?"menu":"wheel",MODE);
         if(racing) {
@@ -181,7 +245,51 @@ final class RacingControlsView extends View {
         }
         canvas.restore();
     }
+    /** undrgnd2.eu's look: see-through black, white words, lime when pressed or lit. */
+    private void drawUndrgnd(Canvas canvas,Control c) {
+        boolean on=c.held>0, picked=editing&&c==selected;
+        boolean lit=(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0);
+        boolean small=c.scan<0||c.shape==ROUND&&c.group==0&&c.area.top<40;
+        float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
+        int bg=on?0xB8000000:racing&&c.scan>=0?0x33000000:0x66000000;
+        int ink=on||lit?LIME:racing&&c.scan>=0?0x8CFFFFFF:0xB8FFFFFF;
+        fill.setColor(bg);
+        if(c.shape==WHEEL) {
+            canvas.drawCircle(cx,cy,r,fill);
+            line.setStrokeWidth(2);line.setColor(picked?0xFFFFCF69:0x29FFFFFF);canvas.drawCircle(cx,cy,r-1,line);
+            float knob=26,kx=cx+c.steering*(r-knob);
+            fill.setColor(on?0xB8000000:0x33000000);canvas.drawCircle(kx,cy,knob,fill);
+            line.setColor(on?LIME:0x5CFFFFFF);canvas.drawCircle(kx,cy,knob-1,line);
+            return;
+        }
+        float corner=c.shape==RECT?16:c.shape==KEY?12:c.shape==PILL?c.area.height()/2:r;
+        if(c.shape==RECT||c.shape==KEY||c.shape==PILL)canvas.drawRoundRect(c.area,corner,corner,fill);
+        else canvas.drawCircle(cx,cy,r,fill);
+        if(lit||picked||!racing) {
+            line.setStrokeWidth(lit||picked?2:1.5f);line.setColor(picked?0xFFFFCF69:lit?LIME:0x33FFFFFF);
+            if(c.shape==RECT||c.shape==KEY||c.shape==PILL)canvas.drawRoundRect(c.area,corner,corner,line);
+            else canvas.drawCircle(cx,cy,r-line.getStrokeWidth()/2,line);
+        }
+        if(c.icon.startsWith("t:")) {
+            String[] lines=c.icon.substring(2).split("\n");
+            float size=lines.length>1?12:c.shape==ROUND?14:16;
+            label.setTextSize(size);label.setColor(ink);
+            float lh=size*1.15f,y0=cy-(lines.length-1)*lh/2;
+            for(int i=0;i<lines.length;++i)canvas.drawText(lines[i],cx,y0+i*lh-(label.ascent()+label.descent())/2,label);
+            return;
+        }
+        if(c.scan==0xF1||c.scan==0xF2) {
+            label.setTextSize(r*.42f);label.setColor(ink);
+            canvas.drawText(c.scan==0xF1?"DRIFT":"GHOST",cx,cy-(label.ascent()+label.descent())/2,label);
+            return;
+        }
+        line.setColor(ink);fill.setColor(ink);line.setStrokeWidth(Math.max(2f,(small?24:32)*.09f));
+        if(c.icon.equals("stick")){canvas.drawCircle(cx,cy,r*.5f,line);canvas.drawCircle(cx,cy,r*.18f,fill);return;}
+        if(c.icon.equals("buttons")){chevronSide(canvas,cx-r*.22f,cy,r*.28f,true);chevronSide(canvas,cx+r*.22f,cy,r*.28f,false);return;}
+        drawIcon(canvas,c,cx,cy,c.shape==RECT||c.shape==KEY?Math.min(r,34):r,on);
+    }
     private void drawControl(Canvas canvas,Control c) {
+        if(style.equals("undrgnd2")){drawUndrgnd(canvas,c);return;}
         boolean on=c.held>0, picked=editing&&c==selected;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int ink=on?ACCENT:0xE6FFFFFF;
@@ -308,7 +416,7 @@ final class RacingControlsView extends View {
     private void drawDrift(Canvas canvas) {
         boolean note=(drift[0]&4)!=0;
         if(!racing||editing||(!driftOn()&&!note))return;
-        float w=getWidth()/scale,cx=w/2,y=26;
+        float w=getWidth()/scale,cx=w/2,y=74;
         String head=note?"Mode drift : uniquement en exploration":(drift[0]&2)!=0?"DRIFT  ×"+drift[1]:"DRIFT  (en pause)";
         String body=note?"":drift[5]>0?"+"+fmt(drift[5]):"Total "+fmt(drift[3])+"   ·   Record "+fmt(drift[4]);
         text.setTextSize(note?14:20);float hw=Math.max(text.measureText(head),body.isEmpty()?0:text.measureText(body)*.8f)/2+18;
@@ -334,7 +442,7 @@ final class RacingControlsView extends View {
         line.setColor(0x993FC1F5);line.setStrokeWidth(1.5f);canvas.drawRoundRect(cx-tw,y,cx+tw,y+26,10,10,line);
         glyph(canvas,head,cx,y+13,15,false,(ghost[0]&8)!=0?0xFFFFFFFF:0xFF3FC1F5);
     }
-    private float bottomOfDrift() {return 84;}
+    private float bottomOfDrift() {return 74;}
     private static String fmt(int value) {return String.format(java.util.Locale.FRANCE,"%,d",value);}
     private void drawToolbarButton(Canvas canvas,RectF area,String label) {
         fill.setColor(0xE014202C);canvas.drawRoundRect(area,12,12,fill);
@@ -384,15 +492,19 @@ final class RacingControlsView extends View {
     }
     private void showOptions() {
         new AlertDialog.Builder(getContext()).setTitle("Options des commandes")
-                .setItems(new String[]{"Style : classique / Xbox / PlayStation","Conduite par inclinaison","Limite de FPS","Enregistrer la disposition","Charger une disposition"},(dialog,which)->{
+                .setItems(new String[]{"Style : undrgnd2.eu / classique / Xbox / PlayStation","Conduite par inclinaison","Limite de FPS",
+                        layouts.getBoolean("gears",false)?"Masquer les rapports (boîte auto)":"Afficher les rapports (boîte manuelle)",
+                        "Enregistrer la disposition","Charger une disposition"},(dialog,which)->{
                     if(which==0)chooseStyle();else if(which==1)configureTilt.run();
-                    else if(which==2)configureFrameLimit.run();else if(which==3)saveNamedLayout();else loadNamedLayout();
+                    else if(which==2)configureFrameLimit.run();
+                    else if(which==3){layouts.edit().putBoolean("gears",!layouts.getBoolean("gears",false)).apply();editing=false;layoutControls();}
+                    else if(which==4)saveNamedLayout();else loadNamedLayout();
                 }).setNegativeButton("Fermer",null).show();
     }
     private void chooseStyle() {
-        String[] ids={"classic","xbox","playstation"};
+        String[] ids={"undrgnd2","classic","xbox","playstation"};
         new AlertDialog.Builder(getContext()).setTitle("Style de conduite")
-                .setSingleChoiceItems(new String[]{"Classique · flèches et pédales","Xbox · volant et A / B / X / Y","PlayStation · volant et × / ○ / □ / △"},style.equals("classic")?0:style.equals("xbox")?1:2,(dialog,which)->{
+                .setSingleChoiceItems(new String[]{"undrgnd2.eu · comme sur le site","Classique · flèches et pédales","Xbox · volant et A / B / X / Y","PlayStation · volant et × / ○ / □ / △"},java.util.Arrays.asList(ids).indexOf(style),(dialog,which)->{
                     style=ids[which];layouts.edit().putString("style",style).apply();
                     layoutControls();dialog.dismiss();
                 }).setNegativeButton("Annuler",null).show();
@@ -439,7 +551,7 @@ final class RacingControlsView extends View {
         for(Control c:controls) {
             float cx=c.area.centerX(),cy=c.area.centerY();
             double d;
-            if(c.shape==PEDAL) {
+            if(c.shape==PEDAL||c.shape>=RECT) {
                 if(Math.abs(x-cx)>c.area.width()*.56f||Math.abs(y-cy)>c.area.height()*.56f)continue;
                 d=Math.hypot((x-cx)/c.area.width(),(y-cy)/c.area.height());
             } else {
@@ -450,14 +562,16 @@ final class RacingControlsView extends View {
         }
         return best;
     }
+    private void press(int scan) { if(scan>=0&&scan<256&&keyCount[scan]++==0)keys.set(scan,true); }
+    private void lift(int scan) { if(scan>=0&&scan<256&&keyCount[scan]>0&&--keyCount[scan]==0)keys.set(scan,false); }
     private void hold(Control c) {
         if(c==null||++c.held!=1)return;
-        if(c.scan>=0)keys.set(c.scan,true);
+        press(c.scan);press(c.scan2);
         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
     }
     private void release(Control c) { if(c!=null && --c.held==0) {
-        if(c.scan>=0)keys.set(c.scan,false);
-        else if(c.scan==STICK) {c.steering=0;keys.set(0xcb,false);keys.set(0xcd,false);}
+        lift(c.scan);lift(c.scan2);
+        if(c.scan==STICK) {c.steering=0;keys.set(0xcb,false);keys.set(0xcd,false);}
     } }
     private void steer(Control c,float x) {
         c.steering=Math.max(-1,Math.min(1,(x/scale-c.area.centerX())/(c.area.width()/2)));
@@ -505,6 +619,11 @@ final class RacingControlsView extends View {
                 // Menu-style buttons do not slide; pedals and arrows follow the thumb.
                 if(old!=null&&old.scan<0)continue;
                 if(next!=null&&(next.scan==STICK&&next.held>0||next.scan<0&&next.scan!=STICK))next=null;
+                // undrgnd2.eu: a finger slides only between the steering's buttons, or between the pedals.
+                if(style.equals("undrgnd2")) {
+                    if(old!=null&&old.group==0)continue;
+                    if(next!=null&&(next.group==0||old!=null&&next.group!=old.group))next=null;
+                }
                 if(old!=next) {release(old);fingers.put(pointer,next);hold(next);if(next!=null&&next.scan==STICK)steer(next,e.getX(i));}
             }
         } else if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_POINTER_UP) {
@@ -514,6 +633,11 @@ final class RacingControlsView extends View {
                 if(c.scan==MODE) {racing=!racing;layoutControls();}
                 else if(c.scan==TEXT) {releaseAll();textInput.run();}
                 else if(c.scan==EDIT) {releaseAll();editing=true;selected=null;}
+                else if(c.scan==STEERMODE) {
+                    boolean stick=!layouts.getString("steer","buttons").equals("stick");
+                    layouts.edit().putString("steer",stick?"stick":"buttons").apply();layoutControls();
+                    Toast.makeText(getContext(),stick?"Direction : joystick":"Direction : boutons ◀ ▶",Toast.LENGTH_SHORT).show();
+                }
                 performClick();
             }
             if(action==MotionEvent.ACTION_UP)releaseAll();  // the last finger left
