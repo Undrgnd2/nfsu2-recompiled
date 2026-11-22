@@ -29,8 +29,9 @@ final class RacingControlsView extends View {
     // Special controls that do not map to a DirectInput scan code.
     private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6;
     private static final int ROUND = 0, PEDAL = 1, WHEEL = 2, RECT = 3, PILL = 4, KEY = 5;
-    /** undrgnd2.eu's colour for a pressed or lit control (sampled from the game's menus). */
-    private static final int LIME = 0xFFC8F088;
+    /** undrgnd2.eu's blue, for a pressed or lit control and the menu. */
+    private static final int LIME = 0xFF3FC1F5;
+    private static final int NAVY = 0xF20A1628, MENU_VALUE = 0xFFA9C7E8;
     /** How many controls hold each key: Nitro holds Gas too, and either one lifting must not let the other's go. */
     private final int[] keyCount = new int[256];
     private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -236,12 +237,14 @@ final class RacingControlsView extends View {
         drawGhost(canvas);
         if(editing) {
             float w=getWidth()/scale;
-            drawToolbarButton(canvas,new RectF(w/2-250,18,w/2-150,58),"DÉFAUT");
+            drawToolbarButton(canvas,new RectF(w/2-250,18,w/2-150,58),"Défaut");
             drawToolbarButton(canvas,new RectF(w/2-142,18,w/2-102,58),"−");
             drawToolbarButton(canvas,new RectF(w/2-94,18,w/2-54,58),"+");
-            drawToolbarButton(canvas,new RectF(w/2-46,18,w/2+58,58),"VALIDER");
-            drawToolbarButton(canvas,new RectF(w/2+66,18,w/2+170,58),"ANNULER");
-            drawToolbarButton(canvas,new RectF(w/2-65,70,w/2+65,106),"OPTIONS");
+            drawToolbarButton(canvas,new RectF(w/2-46,18,w/2+58,58),"Valider");
+            drawToolbarButton(canvas,new RectF(w/2+66,18,w/2+170,58),"Annuler");
+            drawToolbarButton(canvas,new RectF(w/2-65,70,w/2+65,106),"Menu");
+            label.setTextSize(13);label.setColor(0xCCFFFFFF);
+            canvas.drawText(selected==null?"Touche un bouton pour le déplacer, − et + pour sa taille":"Glisse pour déplacer · − et + pour la taille",w/2,128,label);
         }
         canvas.restore();
     }
@@ -444,10 +447,11 @@ final class RacingControlsView extends View {
     }
     private float bottomOfDrift() {return 74;}
     private static String fmt(int value) {return String.format(java.util.Locale.FRANCE,"%,d",value);}
-    private void drawToolbarButton(Canvas canvas,RectF area,String label) {
-        fill.setColor(0xE014202C);canvas.drawRoundRect(area,12,12,fill);
-        text.setColor(ACCENT);text.setTextSize(label.length()>2?12:24);
-        canvas.drawText(label,area.centerX(),area.centerY()-(text.ascent()+text.descent())/2,text);
+    private void drawToolbarButton(Canvas canvas,RectF area,String name) {
+        fill.setColor(NAVY);canvas.drawRoundRect(area,area.height()/2,area.height()/2,fill);
+        line.setStrokeWidth(1.5f);line.setColor(0x663FC1F5);canvas.drawRoundRect(area,area.height()/2,area.height()/2,line);
+        label.setColor(LIME);label.setTextSize(name.length()>2?15:24);
+        canvas.drawText(name,area.centerX(),area.centerY()-(label.ascent()+label.descent())/2,label);
     }
 
     // ---- Editor ------------------------------------------------------------------------------------------
@@ -470,7 +474,7 @@ final class RacingControlsView extends View {
         int action=e.getActionMasked(),index=e.getActionIndex();
         float x=e.getX(index)/scale,y=e.getY(index)/scale,w=getWidth()/scale;
         if(action==MotionEvent.ACTION_DOWN) {
-            if(x>=w/2-65&&x<=w/2+65&&y>=70&&y<=106) {showOptions();return true;}
+            if(x>=w/2-65&&x<=w/2+65&&y>=70&&y<=106) {showMenu();return true;}
             if(y>=18&&y<=58) {
                 boolean handled=true;
                 if(x>=w/2-250&&x<=w/2-150) {for(Control c:controls)c.area.set(c.original);selected=null;}
@@ -489,6 +493,82 @@ final class RacingControlsView extends View {
         } else if(action==MotionEvent.ACTION_CANCEL||action==MotionEvent.ACTION_UP||
                 (action==MotionEvent.ACTION_POINTER_UP&&e.getPointerId(index)==dragPointer))dragPointer=-1;
         invalidate();return true;
+    }
+    // ---- Menu (undrgnd2.eu's: a navy panel, "Menu" in blue and Fermer, a row per setting with its value) ----
+
+    private int px(float dp) {return Math.round(dp*getResources().getDisplayMetrics().density);}
+    private android.app.Dialog menu;
+    private void showMenu() {
+        if(menu!=null&&menu.isShowing())menu.dismiss();
+        Context ctx=getContext();
+        android.widget.LinearLayout panel=new android.widget.LinearLayout(ctx);panel.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();
+        bg.setColor(NAVY);bg.setCornerRadius(px(14));bg.setStroke(px(1.5f),0x663FC1F5);panel.setBackground(bg);
+        android.widget.LinearLayout head=new android.widget.LinearLayout(ctx);head.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        head.setPadding(px(22),px(14),px(22),px(14));
+        android.widget.TextView title=menuText("Menu",22,LIME,true);
+        head.addView(title,new android.widget.LinearLayout.LayoutParams(0,-2,1));
+        android.widget.TextView close=menuText("Fermer",17,0xE6FFFFFF,false);head.addView(close);
+        panel.addView(head);panel.addView(menuRule());
+        android.widget.LinearLayout rows=new android.widget.LinearLayout(ctx);rows.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.widget.ScrollView scroll=new android.widget.ScrollView(ctx);scroll.addView(rows);
+        panel.addView(scroll,new android.widget.LinearLayout.LayoutParams(-1,0,1));
+        android.app.Dialog dialog=new android.app.Dialog(ctx);menu=dialog;
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        boolean stick=layouts.getString("steer","buttons").equals("stick"),gears=layouts.getBoolean("gears",false);
+        String styleName=style.equals("undrgnd2")?"undrgnd2.eu":style.equals("classic")?"Classique":style.equals("xbox")?"Xbox":"PlayStation";
+        menuRow(rows,"Mode drift",driftOn()?"Activé":"Désactivé",0,()->{tap(0xF1);});
+        menuRow(rows,"Mode fantôme",(ghost[0]&1)!=0?"Activé":"Désactivé",0,()->{tap(0xF2);});
+        rows.addView(menuRule());
+        menuRow(rows,"Direction",stick?"Joystick":"Boutons ◀ ▶",0,()->{
+            layouts.edit().putString("steer",stick?"buttons":"stick").apply();layoutControls();});
+        menuRow(rows,"Rapports (boîte manuelle)",gears?"Affichés":"Masqués",0,()->{
+            layouts.edit().putBoolean("gears",!gears).apply();layoutControls();});
+        menuRow(rows,"Inclinaison",null,0,configureTilt);
+        menuRow(rows,"Style des commandes",styleName,0,this::chooseStyle);
+        menuRow(rows,"Déplacer les commandes",null,0,()->{releaseAll();editing=true;selected=null;invalidate();});
+        menuRow(rows,"Dispositions","Enregistrer · Charger",0,()->new AlertDialog.Builder(getContext()).setTitle("Dispositions")
+                .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
+        rows.addView(menuRule());
+        menuRow(rows,"Limite de FPS",null,0,configureFrameLimit);
+        menuRow(rows,"Quitter le jeu",null,0xFFFF7A6E,()->{if(ctx instanceof android.app.Activity)((android.app.Activity)ctx).finish();});
+        android.widget.TextView foot=menuText("undrgnd2.eu · le menu du jeu reste sur Pause",13,0x99FFFFFF,false);
+        foot.setPadding(px(22),px(12),px(22),px(14));panel.addView(menuRule());panel.addView(foot);
+        close.setOnClickListener(v->dialog.dismiss());
+        dialog.setContentView(panel);
+        android.view.Window win=dialog.getWindow();
+        if(win!=null) {
+            win.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+            int w=Math.min(px(420),getWidth()-px(32)),h=getHeight()-px(24);
+            win.setLayout(w,h);win.setDimAmount(.55f);
+            // Keep the game's full screen: no system bars for the dialog's sake.
+            win.setFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+            win.getDecorView().setSystemUiVisibility(getSystemUiVisibility());
+        }
+        dialog.show();
+        if(win!=null)win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+    }
+    /** a press and release of one of the game's keys (or drift.c / ghost.c's buttons) */
+    private void tap(int scan) {keys.set(scan,true);keys.set(scan,false);}
+    private android.widget.TextView menuText(String value,float sp,int color,boolean bold) {
+        android.widget.TextView v=new android.widget.TextView(getContext());v.setText(value);v.setTextSize(sp);v.setTextColor(color);
+        if(bold)v.setTypeface(Typeface.DEFAULT_BOLD);return v;
+    }
+    private View menuRule() {
+        View v=new View(getContext());v.setBackgroundColor(0x333FC1F5);
+        v.setLayoutParams(new android.widget.LinearLayout.LayoutParams(-1,px(1)));return v;
+    }
+    /** a row: its name, its value (blue, at the right) or none; run then closes the menu */
+    private void menuRow(android.widget.LinearLayout rows,String name,String value,int color,Runnable run) {
+        android.widget.LinearLayout row=new android.widget.LinearLayout(getContext());row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(px(22),px(13),px(22),px(13));
+        android.util.TypedValue ripple=new android.util.TypedValue();
+        getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground,ripple,true);
+        row.setBackgroundResource(ripple.resourceId);
+        row.addView(menuText(name,18,color!=0?color:0xFFFFFFFF,false),new android.widget.LinearLayout.LayoutParams(0,-2,1));
+        if(value!=null)row.addView(menuText(value,17,MENU_VALUE,false));
+        row.setOnClickListener(v->{if(menu!=null)menu.dismiss();run.run();});
+        rows.addView(row);
     }
     private void showOptions() {
         new AlertDialog.Builder(getContext()).setTitle("Options des commandes")
@@ -632,7 +712,7 @@ final class RacingControlsView extends View {
             if(c!=null && c==hit(e.getX(index),e.getY(index))) {
                 if(c.scan==MODE) {racing=!racing;layoutControls();}
                 else if(c.scan==TEXT) {releaseAll();textInput.run();}
-                else if(c.scan==EDIT) {releaseAll();editing=true;selected=null;}
+                else if(c.scan==EDIT) {releaseAll();showMenu();}
                 else if(c.scan==STEERMODE) {
                     boolean stick=!layouts.getString("steer","buttons").equals("stick");
                     layouts.edit().putString("steer",stick?"stick":"buttons").apply();layoutControls();
