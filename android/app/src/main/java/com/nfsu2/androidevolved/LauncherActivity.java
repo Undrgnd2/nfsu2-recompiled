@@ -128,22 +128,22 @@ public final class LauncherActivity extends Activity {
         leftScroll.addView(left);
         columns.addView(leftScroll, new LinearLayout.LayoutParams(0, -1, 1.1f));
 
-        // UNDRGND2 wordmark as on undrgnd2.eu: chrome "UNDRGND", glowing cyan "2", cyan rule below.
+        // UNDRGND2 crew banner (res/drawable-nodpi/undrgnd2_banner.jpg, 3:1): cropped to its
+        // middle band, which holds the logo and the "CREW // NEED FOR SPEED UNDERGROUND 2" line.
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout brand = new LinearLayout(this);
-        brand.setGravity(Gravity.BOTTOM);
-        TextView brandName = label("UNDRGND", 34, Color.WHITE, true);
-        brandName.setLetterSpacing(.02f);
-        brandName.measure(0, 0);
-        brandName.getPaint().setShader(new android.graphics.LinearGradient(0, 0, 0, brandName.getMeasuredHeight(),
-                new int[] {0xFFFFFFFF, 0xFFC3CEDB, 0xFF7D8DA3}, null, android.graphics.Shader.TileMode.CLAMP));
-        TextView brandTwo = label("2", 34, ACCENT, true);
-        brandTwo.setShadowLayer(dp(8), 0, 0, ACCENT);
-        brand.addView(brandName);
-        brand.addView(brandTwo);
-        header.addView(brand);
-        header.addView(label("Need for Speed Underground 2 · version Android", 13, 0xCCFFFFFF, false));
+        ImageView banner = new ImageView(this);
+        banner.setImageResource(R.drawable.undrgnd2_banner);
+        banner.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        GradientDrawable bannerFrame = new GradientDrawable();
+        bannerFrame.setCornerRadius(dp(8));
+        bannerFrame.setStroke(dp(1), 0x553FC1F5);
+        banner.setBackground(bannerFrame);
+        banner.setClipToOutline(true);
+        header.addView(banner, new LinearLayout.LayoutParams(-1, dp(112)));
+        TextView subtitle = label("Need for Speed Underground 2 · version Android", 13, 0xCCFFFFFF, false);
+        subtitle.setPadding(0, dp(6), 0, 0);
+        header.addView(subtitle);
         header.addView(label("Projet de fans. Non affilié à Electronic Arts et non approuvé par cette société.", 11, 0x80FFFFFF, false));
         View rule = new View(this);
         rule.setBackgroundColor(ACCENT);
