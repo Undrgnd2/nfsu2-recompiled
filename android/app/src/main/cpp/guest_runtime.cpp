@@ -544,6 +544,18 @@ static void unlockRegionalCars() {
     write32(kLockedNA,0xffffffffu);
     write32(kLockedNA+4,0xffffffffu);
     NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Regional cars: Corsa and 106 unlocked (lock table at %08x cleared)",kLockedNA);
+    // AI racers: North America's 26 AI car types are bytes at 0x7F6DA4, the
+    // last two 5 (Civic) and 18 (RSX), then two bytes of padding read by
+    // nothing else. The Corsa and the 106 go there; the hook at 0x004FEBB1
+    // (widescreen.c) makes the list 28 long where the game uses it.
+    constexpr uint32_t kAiTail=0x007f6dbc;   // list + 24: types 25 and 26, padding
+    if (read32(kAiTail)!=0x00001205u) {
+        NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Regional cars: AI list tail %08x is not the expected one, AI keeps its cars",read32(kAiTail));
+        return;
+    }
+    write32(kAiTail,0x06071205u);
+    nfs_regional_ai_enable(1);
+    NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Regional cars: AI racers may drive them (AI list 26 -> 28)");
 }
 void loadImage(const char* path) {
     std::ifstream stream(path,std::ios::binary);

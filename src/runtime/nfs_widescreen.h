@@ -18,6 +18,10 @@ void nfs_widescreen_set_minimap_offset(float dy);
  * since the game re-sets 1/60 on mode changes. */
 void nfs_widescreen_set_frame_rate(unsigned fps);
 void nfs_widescreen_apply_frame_rate(void);
+/* AI racers may drive the Corsa and the 106: lengthens the North American AI
+ * car list from 26 to 28 types at its use (hook 0x004FEBB1). Call only after
+ * writing the two types into the list's padding (0x7F6DBE, 0x7F6DBF). */
+void nfs_regional_ai_enable(int on);
 
 #ifdef __cplusplus
 }

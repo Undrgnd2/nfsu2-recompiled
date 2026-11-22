@@ -153,7 +153,23 @@ void nfs_widescreen_apply_frame_rate(void) {
 
 static void set_esp_float(uint32_t offset, float value) { wrf(g_esp + offset, value); }
 
+/* Regional cars for AI racers. 0x4FEAF0 picks an opponent's car at random
+ * among the region's list rated near the player's car: ebp = 26 (the length,
+ * an immediate at 0x4FEB9C) and esi = the list, 0x7F6DA4 for North America
+ * (0x7F6DC0 for the other regions, with 7 and 6 in place of 5 and 18). The
+ * hook site 0x4FEBB1 (test eax, eax) follows both, inside the block after
+ * the branch target 0x4FEBAD; the list is read further on with the length.
+ * Same as nfsu2-web's runtime/regional.c (its hook at 0x4FEBAD). */
+static int s_regional_ai;
+void nfs_regional_ai_enable(int on) { s_regional_ai = on; }
+
 void recomp_hook(uint32_t va) {
+#if !defined(NFSU2_EXE_F4BB0D99)
+    if (va == 0x004FEBB1u) {
+        if (s_regional_ai && g_esi == 0x007F6DA4u && g_ebp == 26u) g_ebp = 28u;
+        return;
+    }
+#endif
     int site = 0;
     while (site < SITE_COUNT && k_sites[site] != va) ++site;
     if (!s_enabled && site != FRAME_TIME) return;
