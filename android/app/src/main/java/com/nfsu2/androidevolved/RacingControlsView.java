@@ -123,6 +123,7 @@ final class RacingControlsView extends View {
             add(72,16,46,"map",0x32);     // Mapa del mundo: M
             add(128,16,46,"sms",0x0f);    // Leer SMS: Tab
             add(184,16,46,"reset",0x13);  // Reiniciar coche: R
+            add(240,16,46,"drift",0xF1);  // Mode drift en exploration (drift.c), aucune touche du jeu
             if(style.equals("classic")) {
                 add(20,bottom-92,92,"left",0xcb);
                 add(124,bottom-92,92,"right",0xcd);
@@ -166,6 +167,7 @@ final class RacingControlsView extends View {
         canvas.save(); canvas.scale(scale,scale);
         if(editing)canvas.drawColor(0x55000000);
         for(Control c:controls)drawControl(canvas,c);
+        drawDrift(canvas);
         if(editing) {
             float w=getWidth()/scale;
             drawToolbarButton(canvas,new RectF(w/2-250,18,w/2-150,58),"DÉFAUT");
@@ -248,6 +250,7 @@ final class RacingControlsView extends View {
                 canvas.drawArc(cx-s*.95f,cy-s*.95f,cx+s*.95f,cy+s*.95f,-50,100,false,line);
                 glyph(canvas,"P",cx,cy,s*.9f,on);break;
             case "nitro": glyph(canvas,"N₂O",cx,cy,s*.9f,on);break;
+            case "drift": glyph(canvas,"DRIFT",cx,cy,s*.55f,on,driftOn()?0xFF3FC1F5:0);break;
             case "accept":
                 path.reset();path.moveTo(cx-s*.7f,cy);path.lineTo(cx-s*.15f,cy+s*.55f);path.lineTo(cx+s*.75f,cy-s*.5f);
                 canvas.drawPath(path,line);break;
@@ -291,6 +294,27 @@ final class RacingControlsView extends View {
         text.setTextSize(size);text.setColor(color!=0?color:on?ACCENT:0xF0FFFFFF);
         canvas.drawText(value,x,y-(text.ascent()+text.descent())/2,text);
     }
+    // Drift mode (nativeDriftStatus): flags (1 chosen, 2 on, 4 pressed outside free roam), multiplier,
+    // next level's points, total, best, current drift, its state.
+    private int[] drift=new int[7];
+    void setDrift(int[] status) {
+        if(status==null||status.length<7||java.util.Arrays.equals(status,drift))return;
+        drift=status;if(racing)invalidate();
+    }
+    private boolean driftOn() {return (drift[0]&1)!=0;}
+    private void drawDrift(Canvas canvas) {
+        boolean note=(drift[0]&4)!=0;
+        if(!racing||editing||(!driftOn()&&!note))return;
+        float w=getWidth()/scale,cx=w/2,y=26;
+        String head=note?"Mode drift : uniquement en exploration":(drift[0]&2)!=0?"DRIFT  ×"+drift[1]:"DRIFT  (en pause)";
+        String body=note?"":drift[5]>0?"+"+fmt(drift[5]):"Total "+fmt(drift[3])+"   ·   Record "+fmt(drift[4]);
+        text.setTextSize(note?14:20);float hw=Math.max(text.measureText(head),body.isEmpty()?0:text.measureText(body)*.8f)/2+18;
+        fill.setColor(0xB00A1628);canvas.drawRoundRect(cx-hw,y-4,cx+hw,y+(body.isEmpty()?26:50),10,10,fill);
+        line.setColor(0x993FC1F5);line.setStrokeWidth(1.5f);canvas.drawRoundRect(cx-hw,y-4,cx+hw,y+(body.isEmpty()?26:50),10,10,line);
+        glyph(canvas,head,cx,y+11,note?14:20,false,0xFF3FC1F5);
+        if(!body.isEmpty())glyph(canvas,body,cx,y+36,drift[5]>0?18:13,false,drift[5]>0?0xFFFFFFFF:0xCCFFFFFF);
+    }
+    private static String fmt(int value) {return String.format(java.util.Locale.FRANCE,"%,d",value);}
     private void drawToolbarButton(Canvas canvas,RectF area,String label) {
         fill.setColor(0xE014202C);canvas.drawRoundRect(area,12,12,fill);
         text.setColor(ACCENT);text.setTextSize(label.length()>2?12:24);

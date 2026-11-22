@@ -1,0 +1,7 @@
+# Guest functions whose lifted body is kept as sub_<VA>_orig while sub_<VA> asks
+# the host first (recomp_lookup_manual -> src/runtime/overrides.c), which may run
+# the original or not. Same format as overrides.txt.
+# VA        reason
+0x0056DDD0  drift mode: DriftManager's leaderboard, skipped in free roam (drift.c)
+0x004C85D0  drift mode: the style points' drift branch, skipped in free roam (drift.c)
+0x004AC120  drift mode: FEngHud::ShowNiftyDriftyMessage, skipped in free roam (drift.c)

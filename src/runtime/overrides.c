@@ -11,6 +11,9 @@
 #include <string.h>
 #include "recomp_types.h"
 #include "nfs_runtime.h"
+#ifdef NFS_DRIFT_MODE
+#include "nfs_drift.h"
+#endif
 
 /* 0x006F5FC5: Cyrix detection.
  *   xor eax,eax; sahf; mov eax,5; mov ebx,2; div bl; lahf; cmp ah,2; ...
@@ -39,6 +42,12 @@ static void ov_crt_memmove(void) {
 static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x006F5FC5u, ov_is_cyrix },
     { 0x0075CFD0u, ov_crt_memmove },
+#ifdef NFS_DRIFT_MODE
+    /* wraps (config/wraps.txt): drift mode in free roam, src/runtime/drift.c */
+    { 0x0056DDD0u, nfs_drift_ov_leaderboard },
+    { 0x004C85D0u, nfs_drift_ov_style_points },
+    { 0x004AC120u, nfs_drift_ov_message },
+#endif
 };
 
 nfs_override_fn nfs_override_lookup(uint32_t va) {

@@ -23,6 +23,7 @@
 #include "gamepad_input.h"
 #include "vulkan_driver.h"
 #include "nfs_widescreen.h"
+#include "nfs_drift.h"
 
 static void showStatus(android_app* app, const char* message) {
     JNIEnv* env = nullptr;
@@ -308,10 +309,16 @@ static int32_t onInput(android_app*,AInputEvent* event){
     setGuestKey(scan,action==AKEY_EVENT_ACTION_DOWN);return 1;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeKey(JNIEnv*,jclass,jint scan,jboolean down){
+    // 0xF1: the DRIFT touch button (no key of the game's): drift mode in free roam, src/runtime/drift.c.
+    if(scan==0xf1){if(down==JNI_TRUE)nfs_drift_press();return;}
     setGuestKey(unsigned(scan),down==JNI_TRUE);
     __android_log_print(ANDROID_LOG_INFO,"NFSU2","Android touch DIK=%02x down=%d",unsigned(scan),int(down));
 }
 extern "C" JNIEXPORT jboolean JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeDrivingControls(JNIEnv*,jclass){return guestDrivingControls()?JNI_TRUE:JNI_FALSE;}
+extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeDriftStatus(JNIEnv* env,jclass){
+    int status[7];nfs_drift_status(status);
+    jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
+}
 extern "C" JNIEXPORT jstring JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTakeNotice(JNIEnv* env,jclass){
     std::string notice=takeGuestNotice();return notice.empty()?nullptr:env->NewStringUTF(notice.c_str());
 }

@@ -12,6 +12,7 @@
 #if defined(__ANDROID__) || defined(NFS_D3D9_BACKEND)
 #include "d3d9_bridge.h"
 #include "nfs_widescreen.h"
+#include "nfs_drift.h"
 #endif
 #include <array>
 #include <vector>
@@ -349,7 +350,7 @@ void d3dDispatch(){
     static std::array<std::chrono::nanoseconds,4096> methodTime{};
     if(timed){auto spent=std::chrono::steady_clock::now()-bridgeStart;bridgeTime+=token==0x7e002110u?spent:spent*64;presentTime+=token==0x7e002110u?spent:std::chrono::nanoseconds{};
         methodTime[((token-0x7e000000u)/16u)&4095u]+=token==0x7e002110u?spent:spent*64;}
-    if(token==0x7e002110u){nfs_widescreen_apply_frame_rate();lastPresentMs=steadyMs();startStallWatch();}
+    if(token==0x7e002110u){nfs_widescreen_apply_frame_rate();nfs_drift_frame();lastPresentMs=steadyMs();startStallWatch();}
     if(token==0x7e002110u&&result==0){
         static FramePacer pacer;
         auto now=std::chrono::steady_clock::now();
@@ -602,6 +603,14 @@ uint32_t callGuest(uint32_t va, const uint32_t* args, size_t count, uint32_t cle
         if (g_esp!=saved.esp&&!(threadStart&&g_esp+4u*uint32_t(count)==saved.esp)) throw GuestStop("Guest call stack imbalance at " + hex(va));
         uint32_t result=g_eax; saved.load(); return result;
     } catch (...) { saved.load(); throw; }
+}
+// C entry points for host features written in C (src/runtime/drift.c).
+extern "C" int nfs_guest_readable(uint32_t va,uint32_t bytes){return memory&&memory->readable(va,bytes)?1:0;}
+// A guest call with ecx set (thiscall); cleanup: what the caller pops after a cdecl call.
+extern "C" uint32_t nfs_guest_call(uint32_t va,uint32_t ecx,const uint32_t* args,unsigned count,unsigned cleanup){
+    uint32_t savedEcx=g_ecx;g_ecx=ecx;
+    uint32_t result=callGuest(va,args,count,cleanup,false);
+    g_ecx=savedEcx;return result;
 }
 #include "guest_modules.inc"
 void testLiftedCopy() {

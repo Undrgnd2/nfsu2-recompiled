@@ -107,6 +107,9 @@ def cmd_lift(exe, catalog, outdir, split=400, names_path=None, prefix=""):
     cfg = os.path.join(HERE, "..", "config")
     overrides = read_va_list(os.path.join(cfg, "overrides.txt"))
     excluded = read_va_list(os.path.join(cfg, "exclude.txt"))
+    # Wraps: the original body is lifted as sub_<VA>_orig and sub_<VA> calls the
+    # host's override (recomp_lookup_manual) when there is one, else the original.
+    wraps = read_va_list(os.path.join(cfg, "wraps.txt"))
     # Each SPEED2.EXE build has its own hook sites (config/hooks-<build>.txt);
     # NFSU2_EXE_BUILD selects one, the documented build uses hooks.txt.
     build = os.environ.get("NFSU2_EXE_BUILD", "")
@@ -157,6 +160,13 @@ def cmd_lift(exe, catalog, outdir, split=400, names_path=None, prefix=""):
             else:
                 f = rebuild(md, img, base, fd)
                 code = lifter.lift_function(f)
+                if a in wraps:
+                    head = f"void sub_{a:08X}(void) {{"
+                    assert head in code, f"wrap {a:08X}: no definition line"
+                    code = (f"/* WRAP: {wraps[a]} */\n" + code.replace(head, f"void sub_{a:08X}_orig(void) {{", 1) +
+                            f"\nvoid sub_{a:08X}(void) {{ recomp_func_t _f = recomp_lookup_manual(0x{a:08X}u);"
+                            f" if (_f) {{ _f(); return; }} sub_{a:08X}_orig(); }}")
+                    stats["wrapped"] += 1
         except Exception as ex:  # noqa: BLE001
             failed.append((a, repr(ex)))
             code = (f"/* LIFT FAILED: {ex!r} */\n"
@@ -183,6 +193,8 @@ def cmd_lift(exe, catalog, outdir, split=400, names_path=None, prefix=""):
         fh.write("/* AUTO-GENERATED. DO NOT EDIT. */\n#pragma once\n#include <stdint.h>\n")
         for a in entries:
             fh.write(f"void sub_{a:08X}(void);\n")
+            if a in wraps:
+                fh.write(f"void sub_{a:08X}_orig(void);\n")
     with open(os.path.join(outdir, f"{prefix}recomp_dispatch.c"), "w", newline="\n") as fh:
         fh.write(f'/* AUTO-GENERATED. DO NOT EDIT. */\n#include "recomp_types.h"\n#include "{prefix}recomp_funcs.h"\n\n')
         fh.write(f"const recomp_dispatch_entry_t {prefix}recomp_dispatch_table[] = {{\n")

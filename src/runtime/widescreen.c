@@ -17,6 +17,9 @@
  */
 #include "recomp_types.h"
 #include "nfs_widescreen.h"
+#ifdef NFS_DRIFT_MODE
+#include "nfs_drift.h"
+#endif
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -169,6 +172,9 @@ void recomp_hook(uint32_t va) {
         if (s_regional_ai && g_esi == 0x007F6DA4u && g_ebp == 26u) g_ebp = 28u;
         return;
     }
+#ifdef NFS_DRIFT_MODE
+    if (va == 0x00482279u || va == 0x00471B95u) { nfs_drift_hook(va); return; }
+#endif
 #endif
     int site = 0;
     while (site < SITE_COUNT && k_sites[site] != va) ++site;
