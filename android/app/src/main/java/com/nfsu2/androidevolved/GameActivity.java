@@ -47,7 +47,6 @@ public final class GameActivity extends NativeActivity {
     private static native int[] nativePhotoTake();
     private static native void nativePhotoLook(boolean live, float[] values);
     private static native void nativeTone(float exposure, float white);
-    private static native void nativeOrbit(float x, float y);
     private final boolean[] touchKeys=new boolean[256],sentKeys=new boolean[256];
     private boolean tiltLeft,tiltRight,tiltEnabled,tiltCalibrate=true;
     private float tiltFiltered,tiltNeutral,tiltSensitivity=1;
@@ -258,7 +257,6 @@ public final class GameActivity extends NativeActivity {
         statusWindow.setTouchable(false);
         touchControls = new RacingControlsView(this, this::setTouchKey, this::showTextInput,this::showTiltOptions,this::showFrameLimitOptions);
         touchControls.setPointer(GameActivity::nativePointer);
-        touchControls.setOrbit(GameActivity::nativeOrbit);
         touchControls.setPhotoHooks(new RacingControlsView.Photo() {
             @Override public void input(int cmd, int a, int b) {nativePhoto(cmd, a, b);}
             @Override public void shot() {takePhoto();}

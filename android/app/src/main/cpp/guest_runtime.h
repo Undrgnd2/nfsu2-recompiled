@@ -16,9 +16,7 @@ std::string takeGuestNotice();
 // (triggers), Rx, Ry, Rz in -1..1; buttons A B X Y LB RB Back Start LS RS as bits.
 void setGuestPad(const float axes[6],uint32_t buttons,int hatX,int hatY);
 void setGuestPadConnected(bool connected);
-void setGuestTouchStatus(bool down);
-// The menus' drag: the virtual pad's right stick (X/Y Rotation) from a finger dragged over the 3D view (-1 .. 1, 0 0 none).
-void setGuestTouchOrbit(float x,float y);   // the touch Career status button: the pad's D-pad down
+void setGuestTouchStatus(bool down);   // the touch Career status button: the pad's D-pad down
 // True while the game has the joystick acquired (then the pad stops emulating keys).
 bool guestGamepadInUse();
 // Launcher option; only before the guest boots.

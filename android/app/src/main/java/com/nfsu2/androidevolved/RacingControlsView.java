@@ -26,11 +26,6 @@ final class RacingControlsView extends View {
     interface Keys { void set(int scan, boolean down); }
     /** Touches outside every control drive the game's mouse: x/y as fractions of the view, phase 0 down, 1 move, 2 up. */
     interface Pointer { void touch(float x, float y, int phase); }
-    /** the menus' drag: the virtual pad's right stick, which turns the car views' camera round the car (-1 .. 1) */
-    interface Orbit { void set(float x, float y); }
-    private Orbit orbit;
-    private float orbitX0, orbitY0; private boolean orbiting;
-    private static final float ORBIT_START_DP=14, ORBIT_FULL_DP=110;
     // Special controls that do not map to a DirectInput scan code.
     private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8;
     /** The hydraulics' keys (the game's Pressurize and Bounce: H and J), held while their button is on. */
@@ -1061,25 +1056,9 @@ final class RacingControlsView extends View {
         keys.set(0xcb,c.steering<-.18f);keys.set(0xcd,c.steering>.18f);
     }
     void setPointer(Pointer pointer) { this.pointer=pointer; }
-    void setOrbit(Orbit orbit) { this.orbit=orbit; }
     private void pointerTouch(float x,float y,int phase) {
         if(pointer==null||getWidth()==0||getHeight()==0)return;
         pointerX=x;pointerY=y;pointer.touch(x/getWidth(),y/getHeight(),phase);
-        orbitTouch(x,y,phase);
-    }
-    /** In the menus (the car lot, the garage, the shops, the main menu's car), a finger dragged past ORBIT_START_DP
-     *  holds the right stick as far over as it has gone from where it went down (ORBIT_FULL_DP: all the way), so the
-     *  car's camera turns round it, as a pad's right stick turns it; let go, the stick is back in the middle. */
-    private void orbitTouch(float x,float y,int phase) {
-        if(orbit==null)return;
-        float s=scale>0?scale:1;
-        if(phase==0){orbitX0=x;orbitY0=y;orbiting=false;return;}
-        if(phase==2||racing){if(orbiting)orbit.set(0,0);orbiting=false;return;}
-        float dx=(x-orbitX0)/s,dy=(y-orbitY0)/s;
-        if(!orbiting&&Math.hypot(dx,dy)<ORBIT_START_DP)return;
-        orbiting=true;
-        float ox=Math.max(-1,Math.min(1,dx/ORBIT_FULL_DP)),oy=Math.max(-1,Math.min(1,dy/ORBIT_FULL_DP));
-        orbit.set(ox==0&&oy==0?0.0001f:ox,oy);
     }
     private void pointerRelease() { if(pointerId>=0){pointerId=-1;pointerTouch(pointerX,pointerY,2);} }
     /** Releases fingers the event no longer carries (their ACTION_POINTER_UP never arrived). */
