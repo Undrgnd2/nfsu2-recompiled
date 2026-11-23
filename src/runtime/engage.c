@@ -20,6 +20,7 @@
 int nfs_guest_readable(uint32_t va, uint32_t bytes);
 
 #define G_GAMEMODE      0x00850078u
+#define G_FLOW_E        0x008654a4u
 #define G_RACETYPE      0x0089e7b0u
 #define G_CAREER        0x0085ad40u
 #define G_PLAYER1       0x008900acu
@@ -33,6 +34,7 @@ int nfs_guest_readable(uint32_t va, uint32_t bytes);
 #define PL_MARKER       0x9acu
 #define STUCK           120
 #define NO_SCREEN       60
+#define G_OUTRUN_ST     0x00860a58u   /* the career's outrun offer: 2 while the HUD offers one (0x500D20) */
 
 static int ok(uint32_t va, uint32_t n) { return va >= 0x10000u && nfs_guest_readable(va, n); }
 static uint32_t rd(uint32_t va) { return ok(va, 4) ? MEM32(va) : 0; }
@@ -44,6 +46,12 @@ static int top_is(const char *name) {
     return i && !strcasecmp(b, name);
 }
 
+static int s_can;
+/* the touch controls' Lancer (Engage, Enter): 1 while it does something in career free roam, as undrgnd2.eu's Start
+ * (nfsu2-web status_web.c touch_state "engage"): the player's car on an event's or a shop's marker (player +0x9AC),
+ * or the game's own outrun offer */
+int nfs_engage_status(void) { return s_can; }
+
 void nfs_engage_frame(void) {
     static long f, stuck_eng, stuck_prev, pressed_at = -1;
     static int was_held;
@@ -52,6 +60,7 @@ void nfs_engage_frame(void) {
     uint32_t mgr = rd(G_ENGAGE_MGR), pl = rd(G_PLAYER1);
     int roam = rd(G_GAMEMODE) == 1u && rd(G_RACETYPE) == 0u && top_is("HUD_SingleRace.fng");
     int idle = roam && ok(mgr, 4) && MEM32(mgr) == ENGAGE_FREE;
+    s_can = roam && rd(G_FLOW_E) == 6u && ((pl && rd(pl + PL_MARKER)) || rd(G_OUTRUN_ST) == 2u);
     if (idle && MEM8(G_CAREER + C_ENGAGING)) {
         if (!stuck_eng) stuck_eng = f;
         else if (f - stuck_eng >= STUCK) {

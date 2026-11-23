@@ -103,6 +103,7 @@ void nfs_uniques_ov_unlocked(void);         /* uniques.c: wraps 0x515500 */
 void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */
 void nfs_carspot_frame(void);               /* carspot.c: a kept career spot off the map back to the start (each frame) */
 void nfs_walls_frame(void);                 /* walls.c: a car past the career's walls back on its roads (each frame) */
+int nfs_engage_status(void);                /* engage.c: 1 while Engage (Enter) does something in free roam */
 void nfs_engage_frame(void);                /* engage.c: Engage at a marker mended (each frame) */
 void nfs_sponsors_frame(void);              /* sponsors.c: Continue on the sponsor screens (once) */
 void nfs_garage_hook_shop(void);            /* hook 0x547689 */

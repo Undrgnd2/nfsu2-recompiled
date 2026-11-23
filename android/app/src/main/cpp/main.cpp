@@ -328,8 +328,8 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeGhostStatus(JNIEnv* env,jclass){
-    int status[6];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();
-    jintArray out=env->NewIntArray(6);if(out)env->SetIntArrayRegion(out,0,6,reinterpret_cast<const jint*>(status));return out;
+    int status[7];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();status[6]=nfs_engage_status();
+    jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTone(JNIEnv*,jclass,jfloat exposure,jfloat white){setD3D9Tone(exposure,white);}

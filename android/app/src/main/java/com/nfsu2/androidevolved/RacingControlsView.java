@@ -163,6 +163,9 @@ final class RacingControlsView extends View {
             addU(w-R-106-56,h-B-116-56,56,56,ROUND,"t:Frein\nà main",0x39,-1,0);
             // Regarder derrière: held, the game's Look Back (its key B, DIK 0x30), above the handbrake
             addU(w-R-106-56,h-B-116-56-8-56,56,56,ROUND,"lookback",0x30,-1,0);
+            // Lancer: Engage (Enter) on an event's or a shop's marker, shown only then (undrgnd2.eu's Start; engage.c)
+            float lancerY=h-B-(layouts.getBoolean("gears",false)?(stick?132:112)+56:(stick?120:104))-8-48;
+            addU(L,lancerY,110,48,PILL,"t:Lancer",0x1c,-1,0);controls.get(controls.size()-1).hidden=!engageOn();
         } else {
             final float k=52;
             add(L,T,48,"settings",EDIT);
@@ -792,9 +795,11 @@ final class RacingControlsView extends View {
             showoffSeen=presses;
         }
         if(status==null||status.length<3||java.util.Arrays.equals(status,ghost))return;
+        boolean engageWas=engageOn();
         boolean lightsChanged=status.length>4&&(ghost.length<5||ghost[4]!=status[4]);
         if(lightsChanged&&racing)invalidate();
         ghost=status;
+        if(engageWas!=engageOn())for(Control c:controls)if(c.scan==0x1c&&c.icon.equals("t:Lancer")){c.hidden=!engageOn();if(c.hidden&&c.held>0){c.held=1;release(c);}}
         int state=status.length>3?status[3]:0;
         if(state!=hydState) {
             int was=hydState;hydState=state;
@@ -816,6 +821,7 @@ final class RacingControlsView extends View {
         if(hyd!=0)press(hyd==1?KEY_LIFT:KEY_BOUNCE);
         invalidate();
     }
+    private boolean engageOn() {return ghost.length>6&&ghost[6]!=0;}
     private int showoffSeen=-1; private long showoffUntil; private String showoffText="";
     private void drawShowoff(Canvas canvas) {
         if(!racing||editing||showoffUntil==0)return;
