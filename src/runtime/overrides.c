@@ -107,6 +107,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x0056C420u, nfs_shop_ov_hud_new },
     { 0x00568740u, nfs_shop_ov_ice_msg },
     { 0x00560550u, nfs_shop_ov_ice_new },
+    /* the unique visual parts after Caleb, src/runtime/uniques.c */
+    { 0x00515500u, nfs_uniques_ov_unlocked },
 #endif
 };
 
