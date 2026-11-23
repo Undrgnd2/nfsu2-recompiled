@@ -24,3 +24,4 @@
 0x005F6190  headlights: the car's step, our headlights' byte 0 while off (lights.c)
 0x0060F510  headlights: the car's headlight colour, black for ours while off (lights.c)
 0x00490920  headlights: a light's flare, ours brighter on high beam (lights.c)
+0x00438140  exhibition: the game throws the animation banks away, ours unloaded first, the walk made safe (showoff.c)

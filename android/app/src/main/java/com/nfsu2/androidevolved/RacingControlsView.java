@@ -140,8 +140,11 @@ final class RacingControlsView extends View {
             add(L+448,T,48,"status",0xF3); // Statut de carrière: the pad's D-pad down (guest_input.inc)
             add(L+504,T,48,"photo",PH_TOGGLE);   // Mode photo (photo.c)
             add(L+560,T,48,"lights",0xF4);   // Phares: touché éteints / allumés, maintenu pleins phares (lights.c)
-            add(L+616,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
-            add(L+672,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+616,T,48,"showoff",0xF5);   // Mode exhibition: capot, coffre, portes ouverts pas à pas (showoff.c)
+            // the hydraulics' two after it, or under lights and exhibition when the screen is too narrow for them
+            boolean row=L+728+48+8<=w-R-104;
+            add(row?L+672:L+560,row?T:T+56,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(row?L+728:L+616,row?T:T+56,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
             add(w-R-48,T,48,stick?"stick":"buttons",STEERMODE);
             add(w-R-104,T,48,"menu",MODE);
             if(stick) add(L,h-B-120,120,120,WHEEL,"stick",STICK,0);
@@ -488,6 +491,7 @@ final class RacingControlsView extends View {
         }
         drawDrift(canvas);
         drawGhost(canvas);
+        drawShowoff(canvas);
         if(editing) {
             float w=getWidth()/scale;
             float tb=toolbarTop();
@@ -505,7 +509,7 @@ final class RacingControlsView extends View {
     /** undrgnd2.eu's look: see-through black, white words, lime when pressed or lit. */
     private void drawUndrgnd(Canvas canvas,Control c) {
         boolean on=c.held>0, picked=editing&&c==selected;
-        boolean lit=(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
+        boolean lit=(c.scan==0xF5&&ghost.length>5&&(ghost[5]&7)!=0)||(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
         boolean small=c.scan<0||c.shape==ROUND&&c.group==0&&c.area.top<40;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int bg=on?0xB8000000:racing&&c.scan>=0?0x33000000:0x66000000;
@@ -628,6 +632,16 @@ final class RacingControlsView extends View {
     private void drawIcon(Canvas canvas,Control c,float cx,float cy,float r,boolean on) {
         float s=r*.42f;
         switch(c.icon) {
+            case "showoff": {   // a car seen from the side, its hood lifted
+                float base=cy+s*.35f;
+                path.reset();path.moveTo(cx-s,base);path.lineTo(cx-s,base-s*.35f);path.lineTo(cx-s*.5f,base-s*.4f);
+                path.lineTo(cx-s*.25f,base-s*.85f);path.lineTo(cx+s*.3f,base-s*.85f);path.lineTo(cx+s*.45f,base-s*.4f);
+                path.lineTo(cx+s,base-s*.35f);path.lineTo(cx+s,base);path.close();
+                canvas.drawPath(path,line);
+                canvas.drawLine(cx+s*.45f,base-s*.4f,cx+s*.85f,base-s*1.25f,line);
+                canvas.drawCircle(cx-s*.55f,base+s*.15f,s*.2f,fill);canvas.drawCircle(cx+s*.55f,base+s*.15f,s*.2f,fill);
+                break;
+            }
             case "up": chevron(canvas,cx,cy,s,true);break;
             case "down": chevron(canvas,cx,cy,s,false);break;
             case "left": chevronSide(canvas,cx,cy,s,true);break;
@@ -724,6 +738,19 @@ final class RacingControlsView extends View {
     // cars passed through, nitrous per car (%).
     private int[] ghost=new int[3];
     void setGhost(int[] status) {
+        long nowMs=android.os.SystemClock.uptimeMillis();
+        if(showoffUntil!=0&&nowMs>showoffUntil){showoffUntil=0;invalidate();}
+        if(status!=null&&status.length>5) {   // the exhibition mode: a note on each press of its button
+            int presses=(status[5]>>8)&0xff;
+            if(showoffSeen>=0&&presses!=showoffSeen) {
+                int v=status[5];
+                showoffText=(v&16)!=0?"Mode exhibition : uniquement en exploration":(v&8)!=0?"Mode exhibition : arrête la voiture":
+                        (v&32)!=0?"Mode exhibition : pas d'animations pour cette voiture":
+                        new String[]{"Tout est fermé","Capot ouvert","Coffre ouvert","Portes ouvertes","Tout est ouvert"}[Math.min(v&7,4)];
+                showoffUntil=nowMs+1800;invalidate();
+            }
+            showoffSeen=presses;
+        }
         if(status==null||status.length<3||java.util.Arrays.equals(status,ghost))return;
         boolean lightsChanged=status.length>4&&(ghost.length<5||ghost[4]!=status[4]);
         if(lightsChanged&&racing)invalidate();
@@ -748,6 +775,15 @@ final class RacingControlsView extends View {
         hyd=to;
         if(hyd!=0)press(hyd==1?KEY_LIFT:KEY_BOUNCE);
         invalidate();
+    }
+    private int showoffSeen=-1; private long showoffUntil; private String showoffText="";
+    private void drawShowoff(Canvas canvas) {
+        if(!racing||editing||showoffUntil==0)return;
+        float cx=getWidth()/scale/2,y=bottomOfDrift()+34;
+        text.setTextSize(15);float tw=text.measureText(showoffText)/2+14;
+        fill.setColor(0xB00A1628);canvas.drawRoundRect(cx-tw,y,cx+tw,y+26,10,10,fill);
+        line.setColor(0x993FC1F5);line.setStrokeWidth(1.5f);canvas.drawRoundRect(cx-tw,y,cx+tw,y+26,10,10,line);
+        glyph(canvas,showoffText,cx,y+13,15,false,0xFF3FC1F5);
     }
     private void drawGhost(Canvas canvas) {
         boolean note=(ghost[0]&4)!=0;
@@ -837,6 +873,7 @@ final class RacingControlsView extends View {
         String styleName=style.equals("undrgnd2")?"undrgnd2.eu":style.equals("classic")?"Classique":style.equals("xbox")?"Xbox":"PlayStation";
         menuRow(rows,"Mode drift",driftOn()?"Activé":"Désactivé",0,()->{tap(0xF1);});
         menuRow(rows,"Mode fantôme",(ghost[0]&1)!=0?"Activé":"Désactivé",0,()->{tap(0xF2);});
+        menuRow(rows,"Mode exhibition","Voiture à l'arrêt : capot, coffre, portes",0,()->{tap(0xF5);});
         menuRow(rows,"Mode photo","En exploration ou en course",0,()->{if(photo!=null)photo.input(PHOTO_OPEN,1,0);});
         rows.addView(menuRule());
         menuRow(rows,"Direction",stick?"Joystick":"Boutons ◀ ▶",0,()->{

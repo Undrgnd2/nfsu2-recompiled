@@ -71,6 +71,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x005F6190u, nfs_lights_ov_step },
     { 0x0060F510u, nfs_lights_ov_colour },
     { 0x00490920u, nfs_lights_ov_flare },
+    /* the exhibition mode, src/runtime/showoff.c */
+    { 0x00438140u, nfs_showoff_ov_banks },
 #endif
 };
 

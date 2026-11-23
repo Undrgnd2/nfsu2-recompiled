@@ -56,6 +56,15 @@ void nfs_lights_flares(uint32_t ri);        /* photo.c's flares wrap: the car wh
 void nfs_lights_ov_step(void);              /* wraps 0x5F6190, 0x60F510, 0x490920 */
 void nfs_lights_ov_colour(void);
 void nfs_lights_ov_flare(void);
+/* The exhibition mode (showoff.c): the parked car's hood, trunk and doors opened step by step. */
+void nfs_showoff_press(void);               /* the SHOWOFF touch button (any thread) */
+int nfs_showoff_status(void);               /* the step (0 closed, 1 hood, 2 trunk, 3 doors, 4 all) | 8 the last press
+                                               did nothing: the car moves | 16 not in free roam | 32 no animations,
+                                               presses counted << 8 */
+void nfs_showoff_frame(void);               /* guest thread, after each Present */
+int nfs_showoff_put(uint32_t ri, int body, uint32_t keep[6]);   /* photo.c's car drawing wraps, before ... */
+void nfs_showoff_take(const uint32_t keep[6]);                  /* ... and after the drawing */
+void nfs_showoff_ov_banks(void);            /* wraps 0x438140 */
 #ifdef __cplusplus
 }
 #endif

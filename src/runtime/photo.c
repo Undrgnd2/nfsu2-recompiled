@@ -452,9 +452,19 @@ static int photo_hides(uint32_t ri) {
     return ok(car, 0x9e0) && MEM32(car + CAR_DRIVER) == DRIVER_TRAFFIC;
 }
 /* all thiscall: the render info in ecx */
-void nfs_photo_ov_car(void)        { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } sub_00620AE0_orig(); }
+void nfs_photo_ov_car(void) {                /* (showoff.c: the parts it opens, on the car's type's list for the call) */
+    if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; }
+    uint32_t keep[6]; int so = nfs_showoff_put(g_ecx, 1, keep);
+    sub_00620AE0_orig();
+    if (so) nfs_showoff_take(keep);
+}
 void nfs_photo_ov_car_parts(void)  { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } sub_006162E0_orig(); }
-void nfs_photo_ov_car_lights(void) { if (photo_hides(g_ecx)) { g_esp += 4 + 0x0c; return; } sub_00615A10_orig(); }
+void nfs_photo_ov_car_lights(void) {
+    if (photo_hides(g_ecx)) { g_esp += 4 + 0x0c; return; }
+    uint32_t keep[6]; int so = nfs_showoff_put(g_ecx, 0, keep);
+    sub_00615A10_orig();
+    if (so) nfs_showoff_take(keep);
+}
 void nfs_photo_ov_car_flares(void) {
     if (photo_hides(g_ecx)) { g_esp += 4 + 0x18; return; }
     nfs_lights_flares(g_ecx);                    /* lights.c: high beam's flares */

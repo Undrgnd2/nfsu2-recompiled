@@ -317,6 +317,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
     if(scan==0xf3){setGuestTouchStatus(down==JNI_TRUE);return;}
     // 0xF4: the LIGHTS button: tapped off or on, held high beam (src/runtime/lights.c).
     if(scan==0xf4){nfs_lights_key(down==JNI_TRUE);return;}
+    // 0xF5: the SHOWOFF button: the parked car's hood, trunk, doors opened step by step (src/runtime/showoff.c).
+    if(scan==0xf5){if(down==JNI_TRUE)nfs_showoff_press();return;}
     setGuestKey(unsigned(scan),down==JNI_TRUE);
     __android_log_print(ANDROID_LOG_INFO,"NFSU2","Android touch DIK=%02x down=%d",unsigned(scan),int(down));
 }
@@ -326,8 +328,8 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeGhostStatus(JNIEnv* env,jclass){
-    int status[5];nfs_ghost_status(status);status[4]=nfs_lights_state();
-    jintArray out=env->NewIntArray(5);if(out)env->SetIntArrayRegion(out,0,5,reinterpret_cast<const jint*>(status));return out;
+    int status[6];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();
+    jintArray out=env->NewIntArray(6);if(out)env->SetIntArrayRegion(out,0,6,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoLook(JNIEnv* env,jclass,jboolean live,jfloatArray values){
