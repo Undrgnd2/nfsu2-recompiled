@@ -98,9 +98,8 @@ public final class LauncherActivity extends Activity {
         if (crash != null) {
             Diagnostics.acknowledgeCrashes(this);
             new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                    .setTitle("Le jeu s'est fermé").setMessage(crash + ".\n\nVeux-tu envoyer le journal complet sur GitHub pour que le problème soit corrigé ?")
-                    .setPositiveButton("Signaler sur GitHub", (dialog, which) -> prepareReport(crash))
-                    .setNegativeButton("Plus tard", null).show();
+                    .setTitle("Le jeu s'est fermé").setMessage(crash + ".\n\nRelance-le avec JOUER. Si ça se reproduit, préviens l'équipe UNDRGND2.")
+                    .setPositiveButton("OK", null).show();
         }
     }
 
