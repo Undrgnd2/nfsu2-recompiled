@@ -30,7 +30,13 @@ struct InputObject {
 // pad under DirectInput: X/Y left stick, Z triggers (LT up, RT down), Rx/Ry right
 // stick, Rz centred; buttons A B X Y LB RB Back Start LS RS; one POV hat.
 struct InputPad {float axis[6]{};uint32_t buttons=0;int hatX=0,hatY=0;};
-InputPad inputPad;bool inputPadConnected=false;
+// The pad is always offered to the game, as nfsu2-web's page always has its virtual controller: the touch controls'
+// Career status button is the pad's D-pad down (the game's Legend; the keyboard has no key for it). A real pad's
+// state comes in through setGuestPad; without one the pad stands still.
+InputPad inputPad;bool inputPadConnected=true;
+// The touch Career status button: D-pad down while held, and at least 150 ms (the game reads its input once a frame).
+std::atomic<bool> touchHatDown{false};std::atomic<int64_t> touchHatUntil{0};
+int64_t touchClockMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 std::atomic<int> inputPadAcquired{0};
 std::array<uint8_t,16> directInputGuid(uint32_t data1){
     std::array<uint8_t,16> guid={0,0,0,0,0xf3,0xc9,0xcf,0x11,0xbf,0xc7,0x44,0x45,0x53,0x54,0,0};
@@ -66,9 +72,11 @@ uint32_t padItemValue(const InputObject& object,const InputFormatObject& item){
         return static_cast<uint32_t>(static_cast<int32_t>(std::lround(lo+(v+1.0)*0.5*(hi-lo))));
     }
     if(category&0x10){
-        if(index||(!inputPad.hatX&&!inputPad.hatY))return 0xffffffffu;
+        int hatX=inputPad.hatX,hatY=inputPad.hatY;
+        if(touchHatDown.load()||touchClockMs()<touchHatUntil.load()){hatX=0;hatY=1;}
+        if(index||(!hatX&&!hatY))return 0xffffffffu;
         static const uint32_t angles[3][3]={{31500,0,4500},{27000,0xffffffffu,9000},{22500,18000,13500}};
-        return angles[inputPad.hatY+1][inputPad.hatX+1];
+        return angles[hatY+1][hatX+1];
     }
     return index<10&&(inputPad.buttons>>index&1)?0x80u:0u;
 }

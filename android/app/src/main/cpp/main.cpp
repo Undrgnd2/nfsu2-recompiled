@@ -313,6 +313,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
     if(scan==0xf1){if(down==JNI_TRUE)nfs_drift_press();return;}
     // 0xF2: the GHOST touch button: ghost mode in free roam, src/runtime/ghost.c.
     if(scan==0xf2){if(down==JNI_TRUE)nfs_ghost_press();return;}
+    // 0xF3: the Career status button: the pad's D-pad down, as on undrgnd2.eu (the keyboard has no key for it).
+    if(scan==0xf3){setGuestTouchStatus(down==JNI_TRUE);return;}
     setGuestKey(unsigned(scan),down==JNI_TRUE);
     __android_log_print(ANDROID_LOG_INFO,"NFSU2","Android touch DIK=%02x down=%d",unsigned(scan),int(down));
 }

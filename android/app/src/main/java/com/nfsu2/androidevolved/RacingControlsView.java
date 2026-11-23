@@ -126,8 +126,9 @@ final class RacingControlsView extends View {
             add(L+336,T,48,"drift",0xF1);   // drift.c
             add(L+392,T,48,"ghost",0xF2);   // ghost.c
             // undrgnd2.eu's Pressurize and Bounce: only with a car that has hydraulics (ghost.c hydraulics)
-            add(L+448,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
-            add(L+504,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+448,T,48,"status",0xF3); // Statut de carrière: the pad's D-pad down (guest_input.inc)
+            add(L+504,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+560,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
             add(w-R-48,T,48,stick?"stick":"buttons",STEERMODE);
             add(w-R-104,T,48,"menu",MODE);
             if(stick) add(L,h-B-120,120,120,WHEEL,"stick",STICK,0);
@@ -294,6 +295,12 @@ final class RacingControlsView extends View {
             return;
         }
         line.setColor(ink);fill.setColor(ink);line.setStrokeWidth(Math.max(2f,(small?24:32)*.09f));
+        if(c.icon.equals("status")) {   // bars rising, as the pause menu's statistics icon
+            float s=r*.42f,base=cy+s*.75f,bw=s*.42f;
+            fill.setColor(ink);
+            for(int i=0;i<3;++i){float x0=cx-s*.8f+i*(bw+s*.17f),top=base-s*(.6f+.45f*i);canvas.drawRect(x0,top,x0+bw,base,fill);}
+            return;
+        }
         if(c.icon.equals("lift")||c.icon.equals("bounce")) {
             float s=r*.42f,base=cy+s*.35f;
             canvas.drawLine(cx-s,base,cx+s,base,line);

@@ -986,8 +986,16 @@ void setGuestPad(const float axes[6],uint32_t buttons,int hatX,int hatY){
 }
 void setGuestPadConnected(bool connected){
     std::lock_guard<std::mutex> lock(inputMutex);
-    if(connected!=inputPadConnected)NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Gamepad %s",connected?"connected":"disconnected");
-    inputPadConnected=connected;if(!connected)inputPad=InputPad{};
+    static bool physical=false;
+    if(connected!=physical)NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Gamepad %s",connected?"connected":"disconnected");
+    // The game keeps its pad (guest_input.inc inputPadConnected): without a real one it stands still.
+    physical=connected;if(!connected)inputPad=InputPad{};
+}
+void setGuestTouchStatus(bool down){
+    static std::atomic<int64_t> since{0};
+    int64_t now=touchClockMs();
+    if(down){since=now;touchHatDown=true;}
+    else{touchHatUntil=since.load()+150;touchHatDown=false;}
 }
 bool guestGamepadInUse(){return inputPadAcquired.load()>0;}
 void setGuestDisplaySize(unsigned width,unsigned height){displayWidth=width;displayHeight=height;}
