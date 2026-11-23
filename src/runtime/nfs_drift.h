@@ -69,6 +69,32 @@ void nfs_showoff_ov_banks(void);            /* wraps 0x438140 */
 void nfs_gps_ov_hud(void);                  /* wraps 0x4EC5A0 */
 /* The Bank and the top-left box only when they say something (hudbank.c). */
 void nfs_hudbank_ov_bits(void);             /* wraps 0x600090 */
+/* The career garage 10 slots and Trade Car (garage.c). */
+void nfs_garage_ov_find(void);
+void nfs_garage_ov_find2(void);
+void nfs_garage_ov_find3(void);
+void nfs_garage_ov_walk(void);
+void nfs_garage_ov_count(void);
+void nfs_garage_ov_setup(void);
+void nfs_garage_ov_new_profile(void);
+void nfs_garage_ov_new_slots(void);
+void nfs_garage_ov_new_career(void);
+void nfs_garage_ov_career_update(void);
+void nfs_garage_ov_stage(void);
+void nfs_garage_ov_payload(void);
+void nfs_garage_ov_save_payload(void);
+void nfs_garage_ov_dirty(void);
+void nfs_garage_ov_cars_loaded(void);
+void nfs_garage_ov_profile_cars(void);
+void nfs_garage_ov_profile(void);
+void nfs_garage_ov_helpbar(void);
+void nfs_garage_ov_helplabel(void);
+void nfs_garage_ov_select(void);
+void nfs_garage_swap_in(void);              /* cameras.c race setup wraps: the car driven from slots 6-10 ... */
+void nfs_garage_swap_out(void);
+void nfs_garage_hook_shop(void);            /* hook 0x547689 */
+void nfs_garage_file_written(const char *path);   /* the host: a file the game wrote, closed */
+void nfs_garage_file_deleted(const char *path);   /* the host: a file the game deleted */
 #ifdef __cplusplus
 }
 #endif

@@ -605,6 +605,11 @@ uint32_t callGuest(uint32_t va, const uint32_t* args, size_t count, uint32_t cle
     } catch (...) { saved.load(); throw; }
 }
 // C entry points for host features written in C (src/runtime/drift.c).
+// garage.c: the host path of a file in the game's AppData\Local (its save folder), 0 when none.
+extern "C" int nfs_save_host_path(const char* rel,char* out,size_t n){
+    try{auto path=gamePath(std::string("C:\\nfsu2\\AppData\\Local\\")+rel).string();if(path.size()+1>n)return 0;std::memcpy(out,path.c_str(),path.size()+1);return 1;}
+    catch(...){return 0;}
+}
 extern "C" int nfs_guest_readable(uint32_t va,uint32_t bytes){return memory&&memory->readable(va,bytes)?1:0;}
 // A guest call with ecx set (thiscall); cleanup: what the caller pops after a cdecl call.
 extern "C" uint32_t nfs_guest_call(uint32_t va,uint32_t ecx,const uint32_t* args,unsigned count,unsigned cleanup){

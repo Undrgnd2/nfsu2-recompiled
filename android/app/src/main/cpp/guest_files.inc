@@ -26,7 +26,11 @@ bool discCheckSwitch(const std::filesystem::path& path){
     return lower(path.filename().string())=="foobar"&&!std::filesystem::exists(path,error)&&
         std::filesystem::weakly_canonical(path.parent_path())==std::filesystem::weakly_canonical(hostGameRoot);
 }
-bool closeGuestFile(uint32_t handle){auto file=fileHandles.find(handle);if(file==fileHandles.end())return false;::close(file->second);fileHandles.erase(file);return true;}
+// Files the game opened for writing: when closed, garage.c looks for a profile among them (its GARAGE.DAT beside it).
+std::map<uint32_t,std::string> writtenFiles;
+bool closeGuestFile(uint32_t handle){auto file=fileHandles.find(handle);if(file==fileHandles.end())return false;::close(file->second);fileHandles.erase(file);
+    auto written=writtenFiles.find(handle);if(written!=writtenFiles.end()){std::string path=written->second;writtenFiles.erase(written);nfs_garage_file_written(path.c_str());}
+    return true;}
 void fileType(){
     uint32_t handle=arg(0);
     if(handle>=0xf0000200u&&handle<=0xf0000208u){ret(2,1);return;}
@@ -47,7 +51,7 @@ void createFile(){
     bool existed=std::filesystem::exists(path);
     int descriptor=disposition==3&&!(access&0x40000000u)&&discCheckSwitch(path) ? ::open("/dev/null",O_RDONLY|O_CLOEXEC) : ::open(path.c_str(),options|O_CLOEXEC,0600);
     NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Guest file %s access=%x disposition=%u",path.filename().string().c_str(),access,disposition);
-    if(descriptor<0){lastError=fileError();ret(UINT32_MAX,7);return;}uint32_t handle=nextFileHandle++;fileHandles.emplace(handle,descriptor);lastError=(disposition==2||disposition==4)&&existed?183:0;ret(handle,7);
+    if(descriptor<0){lastError=fileError();ret(UINT32_MAX,7);return;}uint32_t handle=nextFileHandle++;fileHandles.emplace(handle,descriptor);if(access&0x40000000u)writtenFiles[handle]=path.string();lastError=(disposition==2||disposition==4)&&existed?183:0;ret(handle,7);
 }
 void readFile(){
     auto file=fileHandles.find(arg(0));if(file==fileHandles.end()){lastError=6;ret(0,5);return;}if(arg(4))throw GuestStop("Overlapped ReadFile pending");
@@ -179,6 +183,7 @@ void fullPathName(){
 void deleteFile(){
     auto path=gamePath(guestString(arg(0)));
     if(::unlink(path.c_str())){lastError=fileError();ret(0,1);return;}
+    nfs_garage_file_deleted(path.c_str());
     lastError=0;ret(1,1);
 }
 void removeDirectory(){

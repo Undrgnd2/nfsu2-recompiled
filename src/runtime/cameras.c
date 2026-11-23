@@ -52,8 +52,8 @@ void nfs_cam_ov_scroll(void) {
 }
 /* the race's setups: seen, then the game's own */
 void nfs_cam_ov_settings(void) { V.setup = 1; sub_004FE9F0_orig(); }
-void nfs_cam_ov_humans(void)   { V.setup = 1; sub_00525ED0_orig(); }
-void nfs_cam_ov_dyno(void)     { V.setup = 1; sub_00526970_orig(); }
+void nfs_cam_ov_humans(void)   { V.setup = 1; nfs_garage_swap_in(); sub_00525ED0_orig(); nfs_garage_swap_out(); }
+void nfs_cam_ov_dyno(void)     { V.setup = 1; nfs_garage_swap_in(); sub_00526970_orig(); nfs_garage_swap_out(); }
 void nfs_cam_ov_roam(void)     { V.setup = 1; sub_00540780_orig(); }
 void nfs_cam_ov_load(void)     { V.setup = 1; sub_00581820_orig(); }
 

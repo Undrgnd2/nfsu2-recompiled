@@ -37,3 +37,4 @@
 0x004FEBB1  AI car list length 26 -> 28 for the NA list (regional cars; after mov esi, 0x7F6DA4)
 0x00482279  drift mode: music manager test al, al (a drift event?) - free roam's songs play on (drift.c)
 0x00471B95  drift mode: in-game mix test eax, eax ([0x890104]) - the music channel stays up (drift.c)
+0x00547689  garage: the shop buy, the career car among slots 6-10 when not among the 5 (garage.c; 0x547685 is a branch target)

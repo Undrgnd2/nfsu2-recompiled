@@ -77,6 +77,27 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x004EC5A0u, nfs_gps_ov_hud },
     /* the Bank and the top-left box only when they say something, src/runtime/hudbank.c */
     { 0x00600090u, nfs_hudbank_ov_bits },
+    /* the garage 10 slots and Trade Car, src/runtime/garage.c */
+    { 0x00503510u, nfs_garage_ov_find },
+    { 0x00503680u, nfs_garage_ov_find2 },
+    { 0x005035C0u, nfs_garage_ov_find3 },
+    { 0x005162D0u, nfs_garage_ov_walk },
+    { 0x00534850u, nfs_garage_ov_count },
+    { 0x0053FEB0u, nfs_garage_ov_setup },
+    { 0x0052A5D0u, nfs_garage_ov_new_profile },
+    { 0x00516480u, nfs_garage_ov_new_slots },
+    { 0x00532830u, nfs_garage_ov_new_career },
+    { 0x00551320u, nfs_garage_ov_career_update },
+    { 0x00532CF0u, nfs_garage_ov_stage },
+    { 0x0052A280u, nfs_garage_ov_payload },
+    { 0x0052A450u, nfs_garage_ov_save_payload },
+    { 0x0052A4C0u, nfs_garage_ov_dirty },
+    { 0x00516850u, nfs_garage_ov_cars_loaded },
+    { 0x00534770u, nfs_garage_ov_profile_cars },
+    { 0x005344D0u, nfs_garage_ov_profile },
+    { 0x0054E6E0u, nfs_garage_ov_helpbar },
+    { 0x0052D330u, nfs_garage_ov_helplabel },
+    { 0x004DFC50u, nfs_garage_ov_select },
 #endif
 };
 

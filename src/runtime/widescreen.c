@@ -174,6 +174,7 @@ void recomp_hook(uint32_t va) {
     }
 #ifdef NFS_DRIFT_MODE
     if (va == 0x00482279u || va == 0x00471B95u) { nfs_drift_hook(va); return; }
+    if (va == 0x00547689u) { nfs_garage_hook_shop(); return; }
 #endif
 #endif
     int site = 0;
