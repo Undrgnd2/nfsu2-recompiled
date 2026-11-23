@@ -48,6 +48,7 @@ public final class GameActivity extends NativeActivity {
     private static native void nativePhotoLook(boolean live, float[] values);
     private static native void nativeTone(float exposure, float white);
     private static native int nativeFrameCount();
+    private static native int nativeCheat(int cmd, int arg);
     // ---- the FPS / battery counter (the touch controls' menu shows it): frames shown each second, the CPU's hottest
     //      thermal zone where Android lets the app read it, the battery's charge and temperature ----
     private long perfAt; private int perfFrames;
@@ -302,6 +303,7 @@ public final class GameActivity extends NativeActivity {
             @Override public void shot() {takePhoto();}
             @Override public void look(boolean live, float[] values) {nativePhotoLook(live, values);}
             @Override public void tone(float exposure, float white) {nativeTone(exposure, white);}
+            @Override public int cheat(int cmd, int arg) {return nativeCheat(cmd, arg);}
         });
         controlsWindow = new PopupWindow(touchControls, ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, false);

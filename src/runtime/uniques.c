@@ -49,6 +49,7 @@ void nfs_uniques_ov_unlocked(void) {
     uint32_t filter = MEM32(g_esp + 4u), slot = MEM32(g_esp + 8u), part = MEM32(g_esp + 12u);
     sub_00515500_orig();
     if ((g_eax & 0xffu) || !(filter & F_STAGE) || !ok(part, P_LEVEL + 1u)) return;
+    if (nfs_cheat_parts()) { g_eax = (g_eax & ~0xffu) | 1u; return; }   /* cheats.c: every part, while asked */
     if ((MEM8(part + P_LEVEL) >> 5) != LEVEL_UNIQUE || !caleb_beaten()) return;
     g_eax = (g_eax & ~0xffu) | 1u;
     if (!said) { said = 1; LOGI("Uniques: Caleb beaten: the unique visual parts are in every car's shops (first asked: slot %u)", slot); }

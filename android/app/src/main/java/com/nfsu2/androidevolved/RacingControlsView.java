@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -195,7 +195,7 @@ final class RacingControlsView extends View {
         add(w-R-104-70,h-B-58,56,"t:↻",PH_RR);
         add(w-R-104-70,h-B-58-66,56,"t:↺",PH_RL);
     }
-    void setPhotoHooks(Photo hooks) {photo=hooks;sendTone();}
+    void setPhotoHooks(Photo hooks) {photo=hooks;sendTone();sendCheats();}
     // ---- Exposure and White Level (nfsu2-web tonemenu.c): the whole picture, kept in the touch controls' preferences ----
     private int toneExposure() {return layouts.getInt("tone.exposure",10);}   // 0 .. 20: -1.0 .. +1.0 stops
     private int toneWhite() {return layouts.getInt("tone.white",12);}         // 0 .. 12: 40 % .. 100 %
@@ -840,6 +840,41 @@ final class RacingControlsView extends View {
         fill.setColor(0x99000000);canvas.drawRoundRect(cx-tw,y-10,cx+tw,y+10,8,8,fill);
         glyph(canvas,perfText,cx,y,12,false,0xFFFFFFFF);
     }
+    // ---- the solo cheats (src/runtime/cheats.c): off unless turned on in the ⚙ menu; never in a LAN game ----
+    private boolean cheatsOn() {return layouts.getBoolean("cheats",false);}
+    /** the toggles kept in the preferences, to the game (at start, and as they change) */
+    private void sendCheats() {
+        if(photo==null)return;
+        photo.cheat(3,cheatsOn()&&layouts.getBoolean("cheats.nos",false)?1:0);
+        photo.cheat(4,cheatsOn()&&layouts.getBoolean("cheats.parts",false)?1:0);
+    }
+    private void cheatToast(boolean done,String yes,String no) {
+        Toast.makeText(getContext(),done?yes:no,Toast.LENGTH_SHORT).show();
+    }
+    private void showCheats() {
+        if(photo==null)return;
+        boolean on=cheatsOn(),nos=layouts.getBoolean("cheats.nos",false),parts=layouts.getBoolean("cheats.parts",false);
+        java.util.List<String> items=new java.util.ArrayList<>();
+        items.add(on?"Désactiver les triches":"Activer les triches (solo uniquement)");
+        if(on){
+            items.add("+100 000 $");items.add("+1 000 000 $");items.add("Recharger le N₂O");
+            items.add("N₂O toujours plein : "+(nos?"Oui":"Non"));
+            items.add("Toutes les pièces débloquées : "+(parts?"Oui":"Non"));
+        }
+        new AlertDialog.Builder(getContext()).setTitle("Triches (solo)")
+            .setItems(items.toArray(new String[0]),(d,which)->{
+                switch(which){
+                    case 0: layouts.edit().putBoolean("cheats",!on).apply();sendCheats();
+                        Toast.makeText(getContext(),on?"Triches désactivées":"Triches activées (sans effet en LAN)",Toast.LENGTH_SHORT).show();break;
+                    case 1: cheatToast(photo.cheat(1,100000)!=0,"+100 000 $ ajoutés","Seulement en carrière, hors LAN");break;
+                    case 2: cheatToast(photo.cheat(1,1000000)!=0,"+1 000 000 $ ajoutés","Seulement en carrière, hors LAN");break;
+                    case 3: cheatToast(photo.cheat(2,0)!=0,"N₂O rechargé","Pas en LAN");break;
+                    case 4: layouts.edit().putBoolean("cheats.nos",!nos).apply();sendCheats();break;
+                    case 5: layouts.edit().putBoolean("cheats.parts",!parts).apply();sendCheats();
+                        Toast.makeText(getContext(),!parts?"Toutes les pièces débloquées dans les magasins de la carrière":"Pièces : comme le jeu les débloque",Toast.LENGTH_SHORT).show();break;
+                }
+            }).setNegativeButton("Fermer",null).show();
+    }
     private boolean engageOn() {return ghost.length>6&&ghost[6]!=0;}
     private int showoffSeen=-1; private long showoffUntil; private String showoffText="";
     private void drawShowoff(Canvas canvas) {
@@ -952,6 +987,7 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Triches (solo)",cheatsOn()?"Activées":"Désactivées",0,this::showCheats);
         menuRow(rows,"Compteur FPS / batterie",perfShown()?"Affiché":"Masqué",0,()->{layouts.edit().putBoolean("perf",!perfShown()).apply();if(!perfShown())perfText="";invalidate();});
         menuRow(rows,"Limite de FPS",null,0,configureFrameLimit);
         menuRow(rows,"Quitter le jeu",null,0xFFFF7A6E,()->{if(ctx instanceof android.app.Activity)((android.app.Activity)ctx).finish();});

@@ -99,7 +99,11 @@ void nfs_shop_ov_ice_new(void);
 void nfs_dyno_ov_msg(void);                 /* dyno.c: wraps 0x5647E0 */
 void nfs_tune_ov_msg(void);                 /* tunegraph.c: wraps 0x5654D0 */
 void nfs_carpaint_draw(uint32_t ri);        /* carpaint.c: before a car is drawn (photo.c's wraps), its own part paint */
-void nfs_uniques_ov_unlocked(void);         /* uniques.c: wraps 0x515500 */
+void nfs_uniques_ov_unlocked(void);
+/* The solo cheats (cheats.c). */
+int nfs_cheat(int cmd, int arg);            /* any thread: 1 money, 2 nitrous refill, 3 nitrous always full, 4 parts unlocked */
+int nfs_cheat_parts(void);
+void nfs_cheats_frame(void);                /* guest thread, after each Present */         /* uniques.c: wraps 0x515500 */
 void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */
 void nfs_carspot_frame(void);               /* carspot.c: a kept career spot off the map back to the start (each frame) */
 void nfs_walls_frame(void);                 /* walls.c: a car past the career's walls back on its roads (each frame) */
