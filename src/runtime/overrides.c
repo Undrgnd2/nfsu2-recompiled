@@ -57,6 +57,9 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x006162E0u, nfs_photo_ov_car_parts },
     { 0x00615A10u, nfs_photo_ov_car_lights },
     { 0x00615630u, nfs_photo_ov_car_flares },
+    /* the pause menu's Save, src/runtime/savegame.c */
+    { 0x0050DAB0u, nfs_save_ov_add_item },
+    { 0x004C26B0u, nfs_save_ov_accept },
 #endif
 };
 

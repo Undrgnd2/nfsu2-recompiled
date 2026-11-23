@@ -13,3 +13,5 @@
 0x006162E0  photo mode: the car's parts, skipped likewise (photo.c)
 0x00615A10  photo mode: the car's lights and neon, skipped likewise (photo.c)
 0x00615630  photo mode: the car's light flares, skipped likewise (photo.c)
+0x0050DAB0  pause menu Save: a menu's AddOption, Save added after Return to Explore Mode (savegame.c)
+0x004C26B0  pause menu Save: Replay's action, Save's Accept saves the career (savegame.c)

@@ -35,6 +35,10 @@ void nfs_photo_ov_car(void);                /* wraps 0x620AE0, 0x6162E0, 0x615A1
 void nfs_photo_ov_car_parts(void);
 void nfs_photo_ov_car_lights(void);
 void nfs_photo_ov_car_flares(void);
+/* The pause menu's Save in career free roam (savegame.c). */
+void nfs_save_frame(void);                  /* guest thread, after each Present */
+void nfs_save_ov_add_item(void);            /* wraps 0x50DAB0, 0x4C26B0 */
+void nfs_save_ov_accept(void);
 #ifdef __cplusplus
 }
 #endif
