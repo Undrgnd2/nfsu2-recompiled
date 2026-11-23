@@ -36,7 +36,8 @@ import java.util.concurrent.Executors;
  * right (Vulkan driver, resolution, frame cap, widescreen, compatibility).
  */
 public final class LauncherActivity extends Activity {
-    private static final int REQUEST_DRIVER_ZIP = 45, REQUEST_DRIVER_PROBE = 46;
+    private static final int REQUEST_DRIVER_ZIP = 45, REQUEST_DRIVER_PROBE = 46, REQUEST_RESTORE_SAVES = 47;
+    private TextView profilesText;
     // undrgnd2.eu cyan.
     private static final int ACCENT = 0xFF3FC1F5;
     static final String SITE = "https://undrgnd2.eu/";
@@ -182,6 +183,27 @@ public final class LauncherActivity extends Activity {
         siteParams.topMargin = dp(10);
         left.addView(site, siteParams);
 
+        // Profiles: a copy of the saves, or a restore (undrgnd2.eu's backup, the PC game's folder, a profile): SaveBackup
+        LinearLayout saves = card();
+        LinearLayout.LayoutParams savesParams = new LinearLayout.LayoutParams(-1, -2);
+        savesParams.topMargin = dp(10);
+        left.addView(saves, savesParams);
+        saves.addView(label("PROFILS", 12, ACCENT, true));
+        profilesText = label("", 13, 0xDDFFFFFF, false);
+        profilesText.setPadding(0, dp(4), 0, dp(6));
+        saves.addView(profilesText);
+        LinearLayout saveButtons = new LinearLayout(this);
+        Button download = actionButton("Télécharger une copie", false);
+        download.setOnClickListener(view -> exportSaves());
+        Button restore = actionButton("Restaurer", false);
+        restore.setOnClickListener(view -> pickRestore());
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        saveButtons.addView(download, half);
+        LinearLayout.LayoutParams half2 = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        half2.leftMargin = dp(8);
+        saveButtons.addView(restore, half2);
+        saves.addView(saveButtons);
+
         TextView credit = label("Basé sur NFSU2 Android Evolved (codepdbh/nfsu2-recompiled).", 11, 0x66FFFFFF, false);
         credit.setPadding(0, dp(8), 0, 0);
         left.addView(credit);
@@ -206,6 +228,11 @@ public final class LauncherActivity extends Activity {
     private void refresh() {
         boolean allowed = allowed();
         File root = gameRoot();
+        if (profilesText != null) {
+            List<String> profiles = allowed ? SaveBackup.profiles(root) : new ArrayList<>();
+            profilesText.setText(!allowed ? "Autorise d'abord l'accès à la mémoire interne."
+                    : profiles.isEmpty() ? "Aucun profil pour l'instant." : String.join(" · ", profiles));
+        }
         checksList.removeAllViews();
         boolean exe = allowed && new File(root, "SPEED2.EXE").isFile();
         addCheck("SPEED2.EXE", exe, true);
@@ -395,8 +422,55 @@ public final class LauncherActivity extends Activity {
         } catch (Exception error) { message("Test du pilote Vulkan", "Diagnostic invalide : " + error.getMessage()); }
     }
 
+    // ---- Profiles: a copy, a restore ---------------------------------------------------------------------
+    private void exportSaves() {
+        if (!allowed()) { requestAccess(); return; }
+        status.setText("Copie des profils…");
+        worker.execute(() -> {
+            try {
+                String where = SaveBackup.export(this, gameRoot(), "nfsu2-saves-");
+                main.post(() -> { refresh(); message("Profils", where == null ? "Aucune sauvegarde à copier pour l'instant."
+                        : "Copie enregistrée dans " + where + ".\n\nTu peux la restaurer ici ou sur undrgnd2.eu (Restaurer)."); });
+            } catch (Exception error) {
+                main.post(() -> { refresh(); message("Profils", "Impossible de copier les profils : " + error.getMessage()); });
+            }
+        });
+    }
+    private void pickRestore() {
+        if (!allowed()) { requestAccess(); return; }
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Restaurer des profils")
+                .setMessage("Choisis une copie de undrgnd2.eu (« Télécharger une copie »), une copie faite ici, un ZIP du dossier "
+                        + "« NFS Underground 2 » du jeu PC ou un fichier de profil.\n\nLes profils du même nom ici sont remplacés. "
+                        + "Une copie de tes profils actuels est d'abord enregistrée dans Téléchargements/UNDRGND2.")
+                .setPositiveButton("Choisir le fichier", (d, w) -> startActivityForResult(
+                        new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE), REQUEST_RESTORE_SAVES))
+                .setNegativeButton("Annuler", null).show();
+    }
+    private void restoreSaves(Uri source) {
+        status.setText("Restauration des profils…");
+        worker.execute(() -> {
+            try {
+                String before = SaveBackup.export(this, gameRoot(), "nfsu2-avant-restauration-");
+                SaveBackup.Result r = SaveBackup.restore(this, source, gameRoot());
+                main.post(() -> {
+                    refresh();
+                    if (r.profiles.isEmpty()) { message("Restaurer", "Aucun profil du jeu dans ce fichier : rien n'a changé."); return; }
+                    message("Restaurer", "Profil" + (r.profiles.size() > 1 ? "s" : "") + " restauré" + (r.profiles.size() > 1 ? "s" : "") + " : "
+                            + String.join(", ", r.profiles) + "."
+                            + (before != null ? "\n\nTes profils d'avant sont dans " + before + "." : ""));
+                });
+            } catch (Exception error) {
+                main.post(() -> { refresh(); message("Restaurer", "Impossible de restaurer : " + error.getMessage()); });
+            }
+        });
+    }
+
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_RESTORE_SAVES) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) restoreSaves(data.getData());
+            return;
+        }
         if (requestCode == REQUEST_DRIVER_PROBE) {
             showDriverReport(resultCode == RESULT_OK && data != null ? data.getStringExtra("gpu_report")
                     : "{\"probeError\":\"Le test s'est fermé ou a été annulé.\",\"driverLoadFailed\":true}");
