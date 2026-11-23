@@ -13,6 +13,7 @@
 #include <android/native_window.h>
 #endif
 #include <atomic>
+#include <mutex>
 #include <chrono>
 #include <thread>
 #include <cstdlib>
@@ -188,6 +189,48 @@ void noteVertexDeclaration(const D3DVERTEXELEMENT9* elements){
 // crash (null dereference, Mali reports); until a Reset succeeds the device reads as
 // lost and needing a reset, which the game handles as on Windows.
 bool deviceResetPending=false;
+// ---- photo mode's picture (photo.c, GameActivity.takePhoto) ----
+namespace {
+std::atomic<bool> photoWanted{false};
+std::mutex photoMutex;std::vector<uint8_t> photoPixels;unsigned photoWidth=0,photoHeight=0;
+void capturePhoto(IDirect3DDevice9* device){
+    IDirect3DSurface9 *back=nullptr,*resolved=nullptr,*copy=nullptr;
+    if(FAILED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back))||!back){NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Photo: no back buffer");return;}
+    D3DSURFACE_DESC desc{};back->GetDesc(&desc);
+    IDirect3DSurface9* source=back;
+    // GetRenderTargetData reads a single-sample target: a multisampled one is resolved first.
+    if(desc.MultiSampleType!=D3DMULTISAMPLE_NONE&&SUCCEEDED(device->CreateRenderTarget(desc.Width,desc.Height,desc.Format,D3DMULTISAMPLE_NONE,0,FALSE,&resolved,nullptr))
+       &&SUCCEEDED(device->StretchRect(back,nullptr,resolved,nullptr,D3DTEXF_NONE)))source=resolved;
+    bool done=false;
+    if(SUCCEEDED(device->CreateOffscreenPlainSurface(desc.Width,desc.Height,desc.Format,D3DPOOL_SYSTEMMEM,&copy,nullptr))&&copy
+       &&SUCCEEDED(device->GetRenderTargetData(source,copy))){
+        D3DLOCKED_RECT locked{};
+        if(SUCCEEDED(copy->LockRect(&locked,nullptr,D3DLOCK_READONLY))){
+            std::vector<uint8_t> pixels(size_t(desc.Width)*desc.Height*4);
+            for(unsigned y=0;y<desc.Height;++y){
+                const uint8_t* row=static_cast<const uint8_t*>(locked.pBits)+size_t(locked.Pitch)*y;uint8_t* out=pixels.data()+size_t(desc.Width)*4*y;
+                for(unsigned x=0;x<desc.Width;++x,out+=4){
+                    if(desc.Format==D3DFMT_R5G6B5){uint16_t v;std::memcpy(&v,row+2*x,2);
+                        out[0]=uint8_t((v>>11&31)*255/31);out[1]=uint8_t((v>>5&63)*255/63);out[2]=uint8_t((v&31)*255/31);}
+                    else if(desc.Format==D3DFMT_A2R10G10B10){uint32_t v;std::memcpy(&v,row+4*x,4);
+                        out[0]=uint8_t((v>>20&1023)>>2);out[1]=uint8_t((v>>10&1023)>>2);out[2]=uint8_t((v&1023)>>2);}
+                    else {const uint8_t* p=row+4*x;out[0]=p[2];out[1]=p[1];out[2]=p[0];}   // X8R8G8B8 / A8R8G8B8: B G R A in memory
+                    out[3]=255;
+                }
+            }
+            copy->UnlockRect();
+            std::lock_guard<std::mutex> lock(photoMutex);photoPixels.swap(pixels);photoWidth=desc.Width;photoHeight=desc.Height;done=true;
+        }
+    }
+    NFS_RUNTIME_LOG(done?ANDROID_LOG_INFO:ANDROID_LOG_WARN,"NFSU2","Photo: %s %ux%u format %u",done?"captured":"not captured",desc.Width,desc.Height,unsigned(desc.Format));
+    if(copy)copy->Release();if(resolved)resolved->Release();back->Release();
+}
+}
+void requestD3D9Photo(){photoWanted=true;}
+std::vector<uint8_t> takeD3D9Photo(unsigned* width,unsigned* height){
+    std::lock_guard<std::mutex> lock(photoMutex);std::vector<uint8_t> out;out.swap(photoPixels);
+    *width=out.empty()?0:photoWidth;*height=out.empty()?0:photoHeight;return out;
+}
 uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumentCount){
     uint32_t kind=(token-methodBase)/4096,method=((token-methodBase)%4096)/16;
     Object* entry=findObject(args[0]);
@@ -205,6 +248,7 @@ uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumen
         if(!window||deviceResetPending)return D3DERR_DEVICELOST;
         auto source=static_cast<const RECT*>(pointer(args[1])),destination=static_cast<const RECT*>(pointer(args[2]));
         auto dirty=static_cast<const RGNDATA*>(pointer(args[4]));
+        if(kind==2&&photoWanted.exchange(false))capturePhoto(static_cast<IDirect3DDevice9*>(object));
         return kind==2?static_cast<IDirect3DDevice9*>(object)->Present(source,destination,window,dirty):
             static_cast<IDirect3DSwapChain9*>(object)->Present(source,destination,window,dirty,args[5]);
     }

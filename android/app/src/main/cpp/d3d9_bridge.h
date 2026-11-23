@@ -11,3 +11,8 @@ bool d3d9RequestsSurface();
 void acknowledgeD3D9Surface(bool available);
 uint32_t createGuestD3D9(uint32_t sdk);
 uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumentCount);
+// Photo mode's picture: the back buffer read at the next Present (the game's own image, before the touch controls);
+// take: width, height, then RGBA pixels (alpha 255), or empty while none is ready.
+#include <vector>
+void requestD3D9Photo();
+std::vector<uint8_t> takeD3D9Photo(unsigned* width,unsigned* height);

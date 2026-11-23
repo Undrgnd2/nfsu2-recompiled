@@ -43,6 +43,8 @@ public final class GameActivity extends NativeActivity {
     private static native int[] nativeGhostStatus();
     private static native void nativePhoto(int cmd, int a, int b);
     private static native int[] nativePhotoStatus();
+    private static native void nativePhotoShot();
+    private static native int[] nativePhotoTake();
     private final boolean[] touchKeys=new boolean[256],sentKeys=new boolean[256];
     private boolean tiltLeft,tiltRight,tiltEnabled,tiltCalibrate=true;
     private float tiltFiltered,tiltNeutral,tiltSensitivity=1;
@@ -358,19 +360,26 @@ public final class GameActivity extends NativeActivity {
     /** Photo mode's picture: the game's window (the touch controls are a window of their own, so not in it) as a
      *  PNG in the gallery, Pictures/UNDRGND2. */
     private void takePhoto() {
-        if (Build.VERSION.SDK_INT < 26) {Toast.makeText(this, "Photo impossible sur cette version d'Android", Toast.LENGTH_SHORT).show();return;}
-        android.view.View decor = getWindow().getDecorView();
-        int w = decor.getWidth(), h = decor.getHeight();
-        if (w <= 0 || h <= 0) return;
-        android.graphics.Bitmap picture = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
-        android.view.PixelCopy.request(getWindow(), picture, result -> {
-            if (result != android.view.PixelCopy.SUCCESS) {
-                Toast.makeText(this, "Photo impossible (code " + result + ")", Toast.LENGTH_SHORT).show();return;}
-            new Thread(() -> {
-                String saved = savePhoto(picture);
-                runOnUiThread(() -> Toast.makeText(this, saved != null ? "Photo enregistrée : " + saved : "Impossible d'enregistrer la photo", Toast.LENGTH_SHORT).show());
-            }, "photo-save").start();
-        }, new android.os.Handler(android.os.Looper.getMainLooper()));
+        // The renderer reads the game's back buffer at its next Present (PixelCopy sees nothing of the Vulkan surface).
+        nativePhotoShot();
+        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        long until = android.os.SystemClock.uptimeMillis() + 3000;
+        main.postDelayed(new Runnable() {
+            @Override public void run() {
+                int[] data = nativePhotoTake();
+                if (data == null || data.length < 3) {
+                    if (android.os.SystemClock.uptimeMillis() < until) main.postDelayed(this, 50);
+                    else Toast.makeText(GameActivity.this, "Photo impossible : aucune image du jeu", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                int w = data[0], h = data[1];
+                new Thread(() -> {
+                    android.graphics.Bitmap picture = android.graphics.Bitmap.createBitmap(data, 2, w, w, h, android.graphics.Bitmap.Config.ARGB_8888);
+                    String saved = savePhoto(picture);
+                    runOnUiThread(() -> Toast.makeText(GameActivity.this, saved != null ? "Photo enregistrée : " + saved : "Impossible d'enregistrer la photo", Toast.LENGTH_SHORT).show());
+                }, "photo-save").start();
+            }
+        }, 50);
     }
     private String savePhoto(android.graphics.Bitmap picture) {
         String name = "UNDRGND2_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(new java.util.Date()) + ".png";
