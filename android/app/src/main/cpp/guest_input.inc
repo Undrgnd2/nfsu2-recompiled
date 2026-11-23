@@ -36,6 +36,8 @@ struct InputPad {float axis[6]{};uint32_t buttons=0;int hatX=0,hatY=0;};
 InputPad inputPad;bool inputPadConnected=true;
 // The touch Career status button: D-pad down while held, and at least 150 ms (the game reads its input once a frame).
 std::atomic<bool> touchHatDown{false};std::atomic<int64_t> touchHatUntil{0};
+// A finger dragged in the menus: the right stick (the car views' orbit, JOY_EVENT_CARSEL_ORBIT_*), over the real pad's.
+std::atomic<float> touchOrbitX{0.f},touchOrbitY{0.f};
 int64_t touchClockMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 std::atomic<int> inputPadAcquired{0};
 std::array<uint8_t,16> directInputGuid(uint32_t data1){
@@ -65,6 +67,7 @@ uint32_t padItemValue(const InputObject& object,const InputFormatObject& item){
     if(category&3){
         if(index>5)return 0;
         float v=inputPad.axis[index];
+        if(index==3||index==4){float o=index==3?touchOrbitX.load():touchOrbitY.load();if(o!=0.f)v=o;}
         float dz=object.deadZone[index]/10000.f,sat=std::max(object.saturation[index]/10000.f,dz+0.01f);
         float magnitude=std::fabs(v);magnitude=magnitude<=dz?0.f:std::min(1.f,(magnitude-dz)/(sat-dz));
         v=v<0?-magnitude:magnitude;

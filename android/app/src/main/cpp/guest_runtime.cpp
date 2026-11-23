@@ -996,6 +996,7 @@ void setGuestPadConnected(bool connected){
     // The game keeps its pad (guest_input.inc inputPadConnected): without a real one it stands still.
     physical=connected;if(!connected)inputPad=InputPad{};
 }
+void setGuestTouchOrbit(float x,float y){touchOrbitX=std::clamp(x,-1.f,1.f);touchOrbitY=std::clamp(y,-1.f,1.f);}
 void setGuestTouchStatus(bool down){
     static std::atomic<int64_t> since{0};
     int64_t now=touchClockMs();
