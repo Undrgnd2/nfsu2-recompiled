@@ -99,6 +99,7 @@ void nfs_shop_ov_ice_new(void);
 void nfs_dyno_ov_msg(void);                 /* dyno.c: wraps 0x5647E0 */
 void nfs_tune_ov_msg(void);                 /* tunegraph.c: wraps 0x5654D0 */
 void nfs_carpaint_draw(uint32_t ri);        /* carpaint.c: before a car is drawn (photo.c's wraps), its own part paint */
+void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */
 void nfs_carspot_frame(void);               /* carspot.c: a kept career spot off the map back to the start (each frame) */
 void nfs_walls_frame(void);                 /* walls.c: a car past the career's walls back on its roads (each frame) */
 void nfs_engage_frame(void);                /* engage.c: Engage at a marker mended (each frame) */
