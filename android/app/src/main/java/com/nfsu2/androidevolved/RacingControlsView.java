@@ -161,6 +161,8 @@ final class RacingControlsView extends View {
             addU(w-R-92-84,h-B-104,84,104,RECT,"t:Freiner",0xd0,-1,2);
             addU(w-R-12-60,h-B-160-60,60,60,ROUND,"t:N₂O",0x38,0xc8,2);
             addU(w-R-106-56,h-B-116-56,56,56,ROUND,"t:Frein\nà main",0x39,-1,0);
+            // Regarder derrière: held, the game's Look Back (its key B, DIK 0x30), above the handbrake
+            addU(w-R-106-56,h-B-116-56-8-56,56,56,ROUND,"lookback",0x30,-1,0);
         } else {
             final float k=52;
             add(L,T,48,"settings",EDIT);
@@ -632,6 +634,14 @@ final class RacingControlsView extends View {
     private void drawIcon(Canvas canvas,Control c,float cx,float cy,float r,boolean on) {
         float s=r*.42f;
         switch(c.icon) {
+            case "lookback": {   // a U-turn arrow: the view turned round to the rear
+                canvas.drawArc(cx-s*.75f,cy-s*.8f,cx+s*.75f,cy+s*.7f,180,180,false,line);
+                canvas.drawLine(cx+s*.75f,cy-s*.05f,cx+s*.75f,cy+s*.75f,line);
+                canvas.drawLine(cx-s*.75f,cy-s*.05f,cx-s*.75f,cy+s*.55f,line);
+                path.reset();path.moveTo(cx-s*1.1f,cy+s*.3f);path.lineTo(cx-s*.75f,cy+s*.85f);path.lineTo(cx-s*.4f,cy+s*.3f);
+                canvas.drawPath(path,line);
+                break;
+            }
             case "showoff": {   // a car seen from the side, its hood lifted
                 float base=cy+s*.35f;
                 path.reset();path.moveTo(cx-s,base);path.lineTo(cx-s,base-s*.35f);path.lineTo(cx-s*.5f,base-s*.4f);
