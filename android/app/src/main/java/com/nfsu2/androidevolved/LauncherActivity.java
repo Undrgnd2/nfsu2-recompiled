@@ -63,7 +63,7 @@ public final class LauncherActivity extends Activity {
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN |
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         setContentView(buildScreen());
-        checkUpdates(false);
+        // No update check: the upstream releases (codepdbh) would replace UNDRGND2's own build.
         String updated = ReleaseUpdates.pendingWhatsNew(this);
         if (updated != null) showWhatsNew(updated);
     }
@@ -183,12 +183,6 @@ public final class LauncherActivity extends Activity {
         siteParams.topMargin = dp(10);
         left.addView(site, siteParams);
 
-        Button channel = actionButton("Chaîne du développeur d'origine", false);
-        channel.setOnClickListener(view -> openChannel());
-        LinearLayout.LayoutParams channelParams = new LinearLayout.LayoutParams(-1, dp(46));
-        channelParams.topMargin = dp(10);
-        left.addView(channel, channelParams);
-
         TextView credit = label("Basé sur NFSU2 Android Evolved (codepdbh/nfsu2-recompiled).", 11, 0x66FFFFFF, false);
         credit.setPadding(0, dp(8), 0, 0);
         left.addView(credit);
@@ -245,10 +239,8 @@ public final class LauncherActivity extends Activity {
         optionsList.addView(optionRow("Réinitialiser le cache graphique", "Régénérer les shaders", () -> GraphicsCache.prompt(this)));
         for (GameOptions.Option option : GameOptions.ALL)
             optionsList.addView(optionRow(option.title, option.label(GameOptions.get(this, option.key)), () -> chooseOption(option)));
-        optionsList.addView(optionRow("Serveur en ligne", GameOptions.onlineServer(this), this::chooseOnlineServer));
-        optionsList.addView(optionRow("Rechercher des mises à jour",
-                checkingUpdates ? "Vérification sur GitHub…" : "Version " + ReleaseUpdates.installed(this), () -> checkUpdates(true)));
-        optionsList.addView(optionRow("Signaler un problème", "Journal complet sur GitHub", () -> prepareReport(null)));
+        // The APK plays in LAN only: online play is undrgnd2.eu's web version, which this row shows and opens.
+        optionsList.addView(optionRow("Version Web", "undrgnd2.eu", () -> openUrl(Uri.parse(SITE))));
     }
 
     // ---- Options ---------------------------------------------------------------------------------------
