@@ -322,8 +322,8 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeGhostStatus(JNIEnv* env,jclass){
-    int status[3];nfs_ghost_status(status);
-    jintArray out=env->NewIntArray(3);if(out)env->SetIntArrayRegion(out,0,3,reinterpret_cast<const jint*>(status));return out;
+    int status[4];nfs_ghost_status(status);
+    jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jstring JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTakeNotice(JNIEnv* env,jclass){
     std::string notice=takeGuestNotice();return notice.empty()?nullptr:env->NewStringUTF(notice.c_str());

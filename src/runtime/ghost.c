@@ -63,7 +63,7 @@ static struct {
     uint32_t car[GP_N], seen[GP_N], paid[GP_N]; int at;
 } G;
 static atomic_int s_presses;
-static atomic_int s_status[3];
+static atomic_int s_status[4];
 
 static int ok(uint32_t va, uint32_t n) { return va >= 0x10000u && nfs_guest_readable(va, n); }
 static uint32_t rd(uint32_t va) { return ok(va, 4) ? MEM32(va) : 0; }
@@ -129,7 +129,21 @@ static int ghost_pair(uint32_t contact) {
 }
 
 void nfs_ghost_press(void) { atomic_fetch_add(&s_presses, 1); }
-void nfs_ghost_status(int out[3]) { for (int i = 0; i < 3; i++) out[i] = atomic_load(&s_status[i]); }
+void nfs_ghost_status(int out[4]) { for (int i = 0; i < 4; i++) out[i] = atomic_load(&s_status[i]); }
+
+/* The player's car's hydraulics, for the touch controls' Pressurize and Bounce (as nfsu2-web's status_web.c
+ * hydraulics()): 0 none (the level its Hydraulics part gives it, RideInfo +0x581, or the game's own for every car
+ * when [0x7E949C] is not -1), 1 there but a press of H or J would not start them now (a race kind without them,
+ * drift mode's switch, over 10 mph), 2 it would. */
+static int hydraulics(void) {
+    uint32_t car = player_car(), ride = car ? rd(car + 0x10u) : 0;
+    if (!ok(ride, 0x584) || !ok(car + 0x430u, 4)) return 0;
+    int32_t lv = (int8_t)MEM8(ride + 0x581u), all = (int32_t)MEM32(0x007e949cu);
+    if ((all > -1 ? all : lv) == 0) return 0;
+    if (!MEM8(0x007e94a0u) || MEM8(0x0089e7d9u) || MEM32(0x00890104u) || MEM8(0x0089e7e3u) || MEM32(0x0089010cu)) return 1;
+    uint32_t v = MEM32(car + 0x430u); float mps; memcpy(&mps, &v, 4);
+    return mps * 2.237f <= 10.f ? 2 : 1;
+}
 
 void nfs_ghost_frame(void) {
     int n = atomic_exchange(&s_presses, 0), roam = roaming();
@@ -146,6 +160,7 @@ void nfs_ghost_frame(void) {
     atomic_store(&s_status[0], G.want | (G.want && roam ? 2 : 0) | (G.note > 0 ? 4 : 0) | (G.flash > 0 ? 8 : 0));
     atomic_store(&s_status[1], (int)G.passes);
     atomic_store(&s_status[2], (int)(GAIN * 100.f));
+    atomic_store(&s_status[3], MEM32(G_FLOW) == 6u ? hydraulics() : 0);
 }
 
 /* 0x5B2610 (thiscall, ret): a touching pair of collision bodies */

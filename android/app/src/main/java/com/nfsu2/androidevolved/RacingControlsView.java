@@ -27,7 +27,9 @@ final class RacingControlsView extends View {
     /** Touches outside every control drive the game's mouse: x/y as fractions of the view, phase 0 down, 1 move, 2 up. */
     interface Pointer { void touch(float x, float y, int phase); }
     // Special controls that do not map to a DirectInput scan code.
-    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6;
+    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8;
+    /** The hydraulics' keys (the game's Pressurize and Bounce: H and J), held while their button is on. */
+    private static final int KEY_LIFT = 0x23, KEY_BOUNCE = 0x24;
     private static final int ROUND = 0, PEDAL = 1, WHEEL = 2, RECT = 3, PILL = 4, KEY = 5;
     /** undrgnd2.eu's blue, for a pressed or lit control and the menu. */
     private static final int LIME = 0xFF3FC1F5;
@@ -68,6 +70,8 @@ final class RacingControlsView extends View {
         String id;
         /** a second key held with the first (Nitro: Gas too); a group a finger slides within (1 steering, 2 pedals) */
         int scan2 = -1, group;
+        /** away for now (Pressurize and Bounce without hydraulics): not drawn, no finger takes it */
+        boolean hidden;
         int held;
         float steering;
         Control(float x, float y, float w, float h, int shape, String icon, int scan, int color) {
@@ -121,6 +125,9 @@ final class RacingControlsView extends View {
             add(L+280,T,48,"sms",0x0f);
             add(L+336,T,48,"drift",0xF1);   // drift.c
             add(L+392,T,48,"ghost",0xF2);   // ghost.c
+            // undrgnd2.eu's Pressurize and Bounce: only with a car that has hydraulics (ghost.c hydraulics)
+            add(L+448,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+504,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
             add(w-R-48,T,48,stick?"stick":"buttons",STEERMODE);
             add(w-R-104,T,48,"menu",MODE);
             if(stick) add(L,h-B-120,120,120,WHEEL,"stick",STICK,0);
@@ -232,7 +239,7 @@ final class RacingControlsView extends View {
         if(hiddenByGamepad&&!editing)return;
         canvas.save(); canvas.scale(scale,scale);
         if(editing)canvas.drawColor(0x55000000);
-        for(Control c:controls)drawControl(canvas,c);
+        for(Control c:controls)if(!c.hidden)drawControl(canvas,c);
         drawDrift(canvas);
         drawGhost(canvas);
         if(editing) {
@@ -251,7 +258,7 @@ final class RacingControlsView extends View {
     /** undrgnd2.eu's look: see-through black, white words, lime when pressed or lit. */
     private void drawUndrgnd(Canvas canvas,Control c) {
         boolean on=c.held>0, picked=editing&&c==selected;
-        boolean lit=(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0);
+        boolean lit=(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
         boolean small=c.scan<0||c.shape==ROUND&&c.group==0&&c.area.top<40;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int bg=on?0xB8000000:racing&&c.scan>=0?0x33000000:0x66000000;
@@ -287,6 +294,21 @@ final class RacingControlsView extends View {
             return;
         }
         line.setColor(ink);fill.setColor(ink);line.setStrokeWidth(Math.max(2f,(small?24:32)*.09f));
+        if(c.icon.equals("lift")||c.icon.equals("bounce")) {
+            float s=r*.42f,base=cy+s*.35f;
+            canvas.drawLine(cx-s,base,cx+s,base,line);
+            path.reset();path.moveTo(cx-s*.75f,base);path.lineTo(cx-s*.45f,base-s*.4f);path.lineTo(cx+s*.45f,base-s*.4f);path.lineTo(cx+s*.75f,base);
+            canvas.drawPath(path,line);
+            canvas.drawCircle(cx-s*.55f,base+s*.38f,s*.17f,line);canvas.drawCircle(cx+s*.55f,base+s*.38f,s*.17f,line);
+            if(c.icon.equals("lift")) {
+                canvas.drawLine(cx,base-s*.55f,cx,cy-s*1.05f,line);
+                path.reset();path.moveTo(cx-s*.32f,cy-s*.72f);path.lineTo(cx,cy-s*1.05f);path.lineTo(cx+s*.32f,cy-s*.72f);canvas.drawPath(path,line);
+            } else {
+                canvas.drawArc(cx-s*.85f,cy-s*1.05f,cx-s*.15f,cy-s*.45f,180,180,false,line);
+                canvas.drawArc(cx+s*.15f,cy-s*1.05f,cx+s*.85f,cy-s*.45f,180,180,false,line);
+            }
+            return;
+        }
         if(c.icon.equals("stick")){canvas.drawCircle(cx,cy,r*.5f,line);canvas.drawCircle(cx,cy,r*.18f,fill);return;}
         if(c.icon.equals("buttons")){chevronSide(canvas,cx-r*.22f,cy,r*.28f,true);chevronSide(canvas,cx+r*.22f,cy,r*.28f,false);return;}
         drawIcon(canvas,c,cx,cy,c.shape==RECT||c.shape==KEY?Math.min(r,34):r,on);
@@ -433,7 +455,27 @@ final class RacingControlsView extends View {
     private int[] ghost=new int[3];
     void setGhost(int[] status) {
         if(status==null||status.length<3||java.util.Arrays.equals(status,ghost))return;
-        ghost=status;if(racing)invalidate();
+        ghost=status;
+        int state=status.length>3?status[3]:0;
+        if(state!=hydState) {
+            int was=hydState;hydState=state;
+            if(state==0)setHyd(0);
+            // the game starts them only at 10 mph or less, a moment after the key goes down: pressed again then
+            else if(state==2&&was!=2&&hyd!=0){int key=hyd==1?KEY_LIFT:KEY_BOUNCE;lift(key);press(key);}
+            boolean show=state!=0||hyd!=0;
+            for(Control c:controls)if(c.scan==HYD_LIFT||c.scan==HYD_BOUNCE)c.hidden=!show;
+        }
+        if(racing)invalidate();
+    }
+    /** Pressurize (1), Bounce (2) or neither (0): a tap turns one on and holds its key, as a keyboard player holds
+     *  H or J, until a tap turns it off or the other on (nfsu2-web touch.ts setHyd). */
+    private int hyd, hydState;
+    private void setHyd(int to) {
+        if(to==hyd)return;
+        if(hyd!=0)lift(hyd==1?KEY_LIFT:KEY_BOUNCE);
+        hyd=to;
+        if(hyd!=0)press(hyd==1?KEY_LIFT:KEY_BOUNCE);
+        invalidate();
     }
     private void drawGhost(Canvas canvas) {
         boolean note=(ghost[0]&4)!=0;
@@ -629,6 +671,7 @@ final class RacingControlsView extends View {
     private Control hit(float x,float y) {
         x/=scale;y/=scale;Control best=null;double bestDistance=Double.MAX_VALUE;
         for(Control c:controls) {
+            if(c.hidden)continue;
             float cx=c.area.centerX(),cy=c.area.centerY();
             double d;
             if(c.shape==PEDAL||c.shape>=RECT) {
@@ -713,6 +756,8 @@ final class RacingControlsView extends View {
                 if(c.scan==MODE) {racing=!racing;layoutControls();}
                 else if(c.scan==TEXT) {releaseAll();textInput.run();}
                 else if(c.scan==EDIT) {releaseAll();showMenu();}
+                else if(c.scan==HYD_LIFT) setHyd(hyd==1?0:1);
+                else if(c.scan==HYD_BOUNCE) setHyd(hyd==2?0:2);
                 else if(c.scan==STEERMODE) {
                     boolean stick=!layouts.getString("steer","buttons").equals("stick");
                     layouts.edit().putString("steer",stick?"stick":"buttons").apply();layoutControls();
