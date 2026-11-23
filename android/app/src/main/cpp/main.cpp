@@ -328,6 +328,11 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoLook(JNIEnv* env,jclass,jboolean live,jfloatArray values){
+    float v[12]={1,1,1,1,1,1,0,0,0,0,1,1};
+    if(values&&env->GetArrayLength(values)>=12)env->GetFloatArrayRegion(values,0,12,v);
+    setD3D9PhotoLook(live==JNI_TRUE,v);
+}
 // Photo mode's picture once it is read: width, height, then the pixels as ARGB ints (Bitmap's), or null.
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoTake(JNIEnv* env,jclass){
     unsigned w=0,h=0;auto rgba=takeD3D9Photo(&w,&h);
@@ -339,8 +344,8 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhoto(JNIEnv*,jclass,jint cmd,jint a,jint b){nfs_photo_input(cmd,a,b);}
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoStatus(JNIEnv* env,jclass){
-    int status[4];nfs_photo_status(status);
-    jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(status));return out;
+    int status[6];nfs_photo_status(status);
+    jintArray out=env->NewIntArray(6);if(out)env->SetIntArrayRegion(out,0,6,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jstring JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTakeNotice(JNIEnv* env,jclass){
     std::string notice=takeGuestNotice();return notice.empty()?nullptr:env->NewStringUTF(notice.c_str());

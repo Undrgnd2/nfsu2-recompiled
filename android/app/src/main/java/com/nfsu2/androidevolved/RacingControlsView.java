@@ -32,13 +32,14 @@ final class RacingControlsView extends View {
     private static final int KEY_LIFT = 0x23, KEY_BOUNCE = 0x24;
     /** Photo mode (photo.c): its button, and its own controls while it is on. */
     private static final int PH_TOGGLE = -9, PH_EXIT = -10, PH_CAM = -11, PH_RESET = -12, PH_STICK = -13, PH_UP = -14,
-            PH_DOWN = -15, PH_SHOT = -16, PH_RL = -17, PH_RR = -18;
+            PH_DOWN = -15, PH_SHOT = -16, PH_RL = -17, PH_RR = -18, PH_PANEL = -19, PH_PATH_STOP = -20;
     /** nfs_drift.h PHOTO_* */
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
-            PHOTO_MODE = 7, PHOTO_RESET = 8;
-    interface Photo { void input(int cmd, int a, int b); void shot(); }
+            PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
+    private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); }
     private Photo photo;
-    private int[] photoState = new int[4];
+    private int[] photoState = new int[6];
     private boolean photoOn;
     private static final int ROUND = 0, PEDAL = 1, WHEEL = 2, RECT = 3, PILL = 4, KEY = 5;
     /** undrgnd2.eu's blue, for a pressed or lit control and the menu. */
@@ -176,6 +177,8 @@ final class RacingControlsView extends View {
         add(L,T,48,"back",PH_EXIT);
         addU(w-R-170,T,170,48,PILL,(photoState[0]&4)!=0?"t:Caméra libre":"t:Caméra orbite",PH_CAM,-1,0);
         addU(w-R-170-8-120,T,120,48,PILL,"t:Réinitialiser",PH_RESET,-1,0);
+        addU(w-R-170-8-120-8-110,T,110,48,PILL,"t:Réglages",PH_PANEL,-1,0);
+        if(photoState.length>5&&photoState[5]!=0)addU(w/2-90,h-B-48,180,48,PILL,"t:■ Arrêter le trajet",PH_PATH_STOP,-1,0);
         add(L,h-B-140,140,140,WHEEL,"stick",PH_STICK,0);
         addU(L+152,h-B-140,60,66,KEY,"up",PH_UP,-1,0);
         addU(L+152,h-B-66,60,66,KEY,"down",PH_DOWN,-1,0);
@@ -184,11 +187,132 @@ final class RacingControlsView extends View {
         add(w-R-104-70,h-B-58-66,56,"t:↺",PH_RL);
     }
     void setPhotoHooks(Photo hooks) {photo=hooks;}
+    // ---- photo mode's panel (undrgnd2.eu's): the picture's look, the cars shown, the camera's path ----
+    private static final String[] FILTER_IDS={"none","bw","warm","cool","vivid","faded"};
+    private static final String[] FILTER_NAMES={"Aucun","Noir et blanc","Chaud","Froid","Vif","Délavé"};
+    /** contrast, saturation, tint r g b, fade (nfsu2-web photolook.ts FILTERS) */
+    private static final float[][] FILTER_LOOK={{1,1,1,1,1,0},{1.12f,0,1,1,1,0},{1.04f,1.08f,1.08f,1,0.86f,0},
+            {1.04f,0.95f,0.88f,0.98f,1.1f,0},{1.12f,1.4f,1,1,1,0},{0.88f,0.7f,1.02f,1,0.96f,0.07f}};
+    private static final String[] CROP_IDS={"full","16:9","21:9","3:2","4:3","1:1","4:5","9:16"};
+    private static final float[] CROP_RATIO={0,16/9f,21/9f,3/2f,4/3f,1,4/5f,9/16f};
+    private static final String[] CARS_NAMES={"Toutes","Sans le trafic","Seulement la mienne","Aucune"};
+    private static final int[] PATH_SECONDS={3,5,10,20,30,60};
+    private android.app.Dialog photoPanel;
+    private int pick(String[] ids,String id) {for(int i=0;i<ids.length;++i)if(ids[i].equals(id))return i;return 0;}
+    /** the part of the picture the crop keeps, middle of it: left, top, right, bottom (photolook.ts cropRect) */
+    private float[] cropRect() {
+        float r=CROP_RATIO[pick(CROP_IDS,layouts.getString("photo.crop","full"))],aspect=getHeight()>0?getWidth()/(float)getHeight():16/9f;
+        if(!(r>0)||Math.abs(r-aspect)<1e-3)return new float[]{0,0,1,1};
+        if(r>aspect){float h=aspect/r;return new float[]{0,(1-h)/2,1,(1+h)/2};}
+        float w=r/aspect;return new float[]{(1-w)/2,0,(1+w)/2,1};
+    }
+    private void sendLook() {
+        if(photo==null)return;
+        float[] f=FILTER_LOOK[pick(FILTER_IDS,layouts.getString("photo.filter","none"))],k=cropRect();
+        float exposure=(float)Math.pow(2,(layouts.getInt("photo.exposure",50)-50)/50.0),vignette=layouts.getInt("photo.vignette",0)/100f;
+        photo.look(photoOn,new float[]{exposure,f[0],f[1],f[2],f[3],f[4],f[5],vignette,k[0],k[1],k[2],k[3]});
+    }
+    private void showPhotoPanel() {
+        if(photoPanel!=null&&photoPanel.isShowing()){photoPanel.dismiss();return;}
+        Context ctx=getContext();
+        android.widget.LinearLayout panel=new android.widget.LinearLayout(ctx);panel.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xE60A1628);bg.setCornerRadius(px(14));bg.setStroke(px(1.5f),0x663FC1F5);panel.setBackground(bg);
+        android.widget.LinearLayout head=new android.widget.LinearLayout(ctx);head.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        head.setPadding(px(20),px(12),px(20),px(12));
+        head.addView(menuText("Mode photo",20,LIME,true),new android.widget.LinearLayout.LayoutParams(0,-2,1));
+        android.widget.TextView close=menuText("Fermer",16,0xE6FFFFFF,false);head.addView(close);
+        panel.addView(head);panel.addView(menuRule());
+        android.widget.LinearLayout rows=new android.widget.LinearLayout(ctx);rows.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.widget.ScrollView scroll=new android.widget.ScrollView(ctx);scroll.addView(rows);
+        panel.addView(scroll,new android.widget.LinearLayout.LayoutParams(-1,0,1));
+        android.app.Dialog dialog=new android.app.Dialog(ctx);photoPanel=dialog;
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        fillPhotoPanel(rows);
+        close.setOnClickListener(v->dialog.dismiss());
+        dialog.setContentView(panel);dialog.setCanceledOnTouchOutside(false);
+        android.view.Window win=dialog.getWindow();
+        if(win!=null) {
+            win.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+            win.setLayout(Math.min(px(380),getWidth()/2),getHeight()-px(84));
+            win.setGravity(android.view.Gravity.END|android.view.Gravity.BOTTOM);
+            win.setDimAmount(0);win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            // the game stays in hand beside the panel: a finger there turns the camera, two zoom
+            win.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
+            win.setFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+            win.getDecorView().setSystemUiVisibility(getSystemUiVisibility());
+        }
+        dialog.show();
+    }
+    private void refreshPhotoPanel(android.widget.LinearLayout rows) {rows.removeAllViews();fillPhotoPanel(rows);invalidate();}
+    private void section(android.widget.LinearLayout rows,String name) {
+        android.widget.TextView t=menuText(name.toUpperCase(java.util.Locale.FRANCE),13,LIME,true);
+        t.setPadding(px(20),px(14),px(20),px(4));rows.addView(t);
+    }
+    /** a row whose tap does run, the panel staying open (its values again) */
+    private void photoRow(android.widget.LinearLayout rows,String name,String value,Runnable run) {
+        android.widget.LinearLayout row=new android.widget.LinearLayout(getContext());row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(px(20),px(11),px(20),px(11));
+        android.util.TypedValue ripple=new android.util.TypedValue();
+        getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground,ripple,true);
+        row.setBackgroundResource(ripple.resourceId);
+        row.addView(menuText(name,16,0xFFFFFFFF,false),new android.widget.LinearLayout.LayoutParams(0,-2,1));
+        if(value!=null)row.addView(menuText(value,15,MENU_VALUE,false));
+        row.setOnClickListener(v->{run.run();refreshPhotoPanel(rows);});
+        rows.addView(row);
+    }
+    private void sliderRow(android.widget.LinearLayout rows,String name,String key,int start,java.util.function.IntFunction<String> shown) {
+        android.widget.LinearLayout box=new android.widget.LinearLayout(getContext());box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(px(20),px(8),px(20),px(6));
+        android.widget.LinearLayout top=new android.widget.LinearLayout(getContext());
+        top.addView(menuText(name,16,0xFFFFFFFF,false),new android.widget.LinearLayout.LayoutParams(0,-2,1));
+        android.widget.TextView value=menuText(shown.apply(layouts.getInt(key,start)),15,MENU_VALUE,false);top.addView(value);
+        android.widget.SeekBar bar=new android.widget.SeekBar(getContext());bar.setMax(100);bar.setProgress(layouts.getInt(key,start));
+        bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar s,int p,boolean user){if(!user)return;
+                layouts.edit().putInt(key,p).apply();value.setText(shown.apply(p));sendLook();}
+            @Override public void onStartTrackingTouch(android.widget.SeekBar s){}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar s){}
+        });
+        box.addView(top);box.addView(bar);rows.addView(box);
+    }
+    private void fillPhotoPanel(android.widget.LinearLayout rows) {
+        section(rows,"Image");
+        int filter=pick(FILTER_IDS,layouts.getString("photo.filter","none"));
+        photoRow(rows,"Filtre",FILTER_NAMES[filter],()->{layouts.edit().putString("photo.filter",FILTER_IDS[(filter+1)%FILTER_IDS.length]).apply();sendLook();});
+        sliderRow(rows,"Luminosité","photo.exposure",50,p->String.format(java.util.Locale.FRANCE,"%+.1f IL",(p-50)/50.0));
+        sliderRow(rows,"Vignettage","photo.vignette",0,p->p+" %");
+        int crop=pick(CROP_IDS,layouts.getString("photo.crop","full"));
+        photoRow(rows,"Cadrage",crop==0?"Image entière":CROP_IDS[crop],()->{layouts.edit().putString("photo.crop",CROP_IDS[(crop+1)%CROP_IDS.length]).apply();sendLook();});
+        boolean grid=layouts.getBoolean("photo.grid",false);
+        photoRow(rows,"Grille des tiers",grid?"Affichée":"Masquée",()->layouts.edit().putBoolean("photo.grid",!grid).apply());
+        photoRow(rows,"Réinitialiser l'image",null,()->{layouts.edit().remove("photo.filter").remove("photo.exposure").remove("photo.vignette")
+                .remove("photo.crop").remove("photo.grid").apply();sendLook();});
+        section(rows,"Scène");
+        int cars=layouts.getInt("photo.cars",0);
+        photoRow(rows,"Voitures affichées",CARS_NAMES[cars],()->{int next=(cars+1)%CARS_NAMES.length;layouts.edit().putInt("photo.cars",next).apply();photoInput(PHOTO_CARS,next,0);});
+        section(rows,"Trajet de caméra");
+        int points=photoState.length>4?photoState[4]:0;boolean playing=photoState.length>5&&photoState[5]!=0;
+        int sec=layouts.getInt("photo.path_s",2);
+        photoRow(rows,"Ajouter un point",points+" / 8",()->photoInput(PHOTO_PATH,PATH_ADD,0));
+        photoRow(rows,"Durée",PATH_SECONDS[sec]+" s",()->layouts.edit().putInt("photo.path_s",(sec+1)%PATH_SECONDS.length).apply());
+        photoRow(rows,playing?"Arrêter le trajet":"Lire le trajet",points<2?"2 points minimum":null,()->{
+            if(playing)photoInput(PHOTO_PATH,PATH_STOP,0);else if(points>=2)photoInput(PHOTO_PATH,PATH_PLAY,PATH_SECONDS[sec]*1000);});
+        photoRow(rows,"Effacer le trajet",null,()->photoInput(PHOTO_PATH,PATH_CLEAR,0));
+        android.widget.TextView help=menuText("Place la caméra, ajoute un point, recommence (jusqu'à 8), puis lis le trajet : la caméra passe d'un point à l'autre en douceur.",12,0x99FFFFFF,false);
+        help.setPadding(px(20),px(6),px(20),px(14));rows.addView(help);
+    }
     void setPhotoStatus(int[] status) {
         if(status==null||status.length<4)return;
         boolean on=(status[0]&2)!=0,free=(status[0]&4)!=(photoState[0]&4);
-        photoState=status;
-        if(on!=photoOn||on&&free) {photoOn=on;photoRelease();releaseAll();if(!editing)layoutControls();}
+        boolean path=status.length>5&&photoState.length>5&&(status[5]!=0)!=(photoState.length>5&&photoState[5]!=0);
+        int[] was=photoState;photoState=status;
+        if(on!=photoOn) {
+            photoOn=on;sendLook();
+            if(on)photoInput(PHOTO_CARS,layouts.getInt("photo.cars",0),0);
+            else if(photoPanel!=null&&photoPanel.isShowing())photoPanel.dismiss();
+        }
+        if(on!=((was[0]&2)!=0)||on&&(free||path)) {photoRelease();releaseAll();if(!editing)layoutControls();}
         else if(photoOn)invalidate();
     }
     private void photoInput(int cmd,int a,int b) {if(photo!=null)photo.input(cmd,a,b);}
@@ -220,6 +344,8 @@ final class RacingControlsView extends View {
         else if(c.scan==PH_CAM)photoInput(PHOTO_MODE,0,0);
         else if(c.scan==PH_RESET)photoInput(PHOTO_RESET,0,0);
         else if(c.scan==PH_SHOT&&photo!=null)photo.shot();
+        else if(c.scan==PH_PANEL)showPhotoPanel();
+        else if(c.scan==PH_PATH_STOP)photoInput(PHOTO_PATH,PATH_STOP,0);
     }
     private void photoRelease() {
         for(Control c:photoFingers.values())photoLift(c,false);
@@ -346,6 +472,15 @@ final class RacingControlsView extends View {
         if(editing)canvas.drawColor(0x55000000);
         for(Control c:controls)if(!c.hidden)drawControl(canvas,c);
         if(photoOn&&!editing) {
+            float[] k=cropRect();float vw=getWidth()/scale,vh=getHeight()/scale;
+            float l=k[0]*vw,t=k[1]*vh,r=k[2]*vw,b=k[3]*vh;
+            fill.setColor(0xB3000000);
+            if(t>0)canvas.drawRect(0,0,vw,t,fill);if(b<vh)canvas.drawRect(0,b,vw,vh,fill);
+            if(l>0)canvas.drawRect(0,t,l,b,fill);if(r<vw)canvas.drawRect(r,t,vw,b,fill);
+            if(layouts.getBoolean("photo.grid",false)) {
+                line.setStrokeWidth(1);line.setColor(0x99FFFFFF);
+                for(int i=1;i<3;++i){float x=l+(r-l)*i/3f,y=t+(b-t)*i/3f;canvas.drawLine(x,t,x,b,line);canvas.drawLine(l,y,r,y,line);}
+            }
             label.setTextSize(14);label.setColor(0xE6FFFFFF);
             canvas.drawText("MODE PHOTO · glisse pour tourner · pince pour zoomer · zoom "+photoState[1]/10+"°"+(photoState[2]!=0?" · inclinaison "+photoState[2]/10+"°":""),
                     getWidth()/scale/2,78,label);

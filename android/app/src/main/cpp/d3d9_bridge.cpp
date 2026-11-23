@@ -4,6 +4,8 @@
 #include "vertex_formats.h"
 #include <d3d9.h>
 #include <algorithm>
+#include <cmath>
+#include <functional>
 #include <map>
 #include <type_traits>
 #include <unordered_map>
@@ -190,9 +192,84 @@ void noteVertexDeclaration(const D3DVERTEXELEMENT9* elements){
 // lost and needing a reset, which the game handles as on Windows.
 bool deviceResetPending=false;
 // ---- photo mode's picture (photo.c, GameActivity.takePhoto) ----
+extern "C" int nfs_photo_still(void);
 namespace {
 std::atomic<bool> photoWanted{false};
 std::mutex photoMutex;std::vector<uint8_t> photoPixels;unsigned photoWidth=0,photoHeight=0;
+// the look (nfsu2-web gpu/wgsl.ts fs_look): exposure, contrast, saturation, tint, fade, vignette over the kept part
+struct PhotoLook{float exposure=1,contrast=1,saturation=1,tint[3]={1,1,1},fade=0,vignette=0,crop[4]={0,0,1,1};};
+std::mutex lookMutex;PhotoLook photoLook;std::atomic<bool> lookLive{false};std::atomic<unsigned> lookGen{1};
+PhotoLook currentLook(){std::lock_guard<std::mutex> lock(lookMutex);return photoLook;}
+bool neutral(const PhotoLook& l){
+    return l.exposure==1&&l.contrast==1&&l.saturation==1&&l.tint[0]==1&&l.tint[1]==1&&l.tint[2]==1&&l.fade==0&&l.vignette==0;
+}
+// pixels of 4 bytes, red at r, green at g, blue at b (RGBA 0 1 2, BGRA 2 1 0)
+void applyLookRows(uint8_t* pixels,size_t pitch,unsigned w,unsigned h,unsigned y0,unsigned y1,int r,int g,int b,const PhotoLook& l){
+    float cw=std::max(1e-6f,l.crop[2]-l.crop[0]),ch=std::max(1e-6f,l.crop[3]-l.crop[1]);
+    for(unsigned y=y0;y<y1;++y){
+        uint8_t* row=pixels+pitch*y;float py=((y+0.5f)/h-l.crop[1])/ch-0.5f;
+        for(unsigned x=0;x<w;++x){
+            uint8_t* p=row+4*x;
+            float c[3]={p[r]/255.f*l.exposure*l.tint[0],p[g]/255.f*l.exposure*l.tint[1],p[b]/255.f*l.exposure*l.tint[2]};
+            float lum=0.2126f*c[0]+0.7152f*c[1]+0.0722f*c[2];
+            float px=((x+0.5f)/w-l.crop[0])/cw-0.5f,v=1.f;
+            if(l.vignette>0){float d=std::sqrt(px*px+py*py)*1.41421356f,t=std::min(1.f,std::max(0.f,(d-0.25f)/0.75f));v=1.f-l.vignette*t*t*(3.f-2.f*t);}
+            for(int i=0;i<3;++i){
+                float k=lum+(c[i]-lum)*l.saturation;
+                k=(k-0.5f)*l.contrast+0.5f;
+                k=l.fade+k*(1.f-l.fade);
+                k=std::min(1.f,std::max(0.f,k*v));
+                c[i]=k;
+            }
+            p[r]=uint8_t(c[0]*255.f+0.5f);p[g]=uint8_t(c[1]*255.f+0.5f);p[b]=uint8_t(c[2]*255.f+0.5f);
+        }
+    }
+}
+// over the picture in 4 bands at once: the guest thread (and the music it feeds) waits the least
+void applyLook(uint8_t* pixels,size_t pitch,unsigned w,unsigned h,int r,int g,int b,const PhotoLook& l){
+    const unsigned bands=4;std::thread workers[bands-1];
+    for(unsigned i=1;i<bands;++i)workers[i-1]=std::thread(applyLookRows,pixels,pitch,w,h,h*i/bands,h*(i+1)/bands,r,g,b,std::cref(l));
+    applyLookRows(pixels,pitch,w,h,0,h/bands,r,g,b,l);
+    for(auto& t:workers)t.join();
+}
+// The look over the game while photo mode shows it: the back buffer read, the look applied, and written back (the
+// world stands then, so the frames are few to spare). A multisampled back buffer or another format: not shown.
+// The live look costs a read of the frame, the work and its upload: done once while the camera stands still
+// (nfs_photo_still), its picture then drawn over each frame; while the camera moves the game shows as it is.
+IDirect3DSurface9* lookCache=nullptr;unsigned lookCacheGen=0,lookCacheW=0,lookCacheH=0;
+void releaseLookCache(){if(lookCache){lookCache->Release();lookCache=nullptr;}lookCacheGen=0;}
+void previewLook(IDirect3DDevice9* device){
+    PhotoLook l=currentLook();
+    if(neutral(l)||!nfs_photo_still()){releaseLookCache();return;}
+    IDirect3DSurface9 *back=nullptr,*copy=nullptr,*upload=nullptr;
+    if(FAILED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back))||!back)return;
+    unsigned gen=lookGen.load();
+    if(lookCache&&lookCacheGen==gen){
+        D3DSURFACE_DESC d{};back->GetDesc(&d);
+        if(d.Width==lookCacheW&&d.Height==lookCacheH){device->StretchRect(lookCache,nullptr,back,nullptr,D3DTEXF_NONE);back->Release();return;}
+    }
+    releaseLookCache();
+    D3DSURFACE_DESC desc{};back->GetDesc(&desc);
+    static bool told=false;
+    if(desc.MultiSampleType!=D3DMULTISAMPLE_NONE||(desc.Format!=D3DFMT_X8R8G8B8&&desc.Format!=D3DFMT_A8R8G8B8)){
+        if(!told){told=true;NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Photo: no live look (back buffer format %u, %u samples)",unsigned(desc.Format),unsigned(desc.MultiSampleType));}
+        back->Release();return;
+    }
+    if(SUCCEEDED(device->CreateOffscreenPlainSurface(desc.Width,desc.Height,desc.Format,D3DPOOL_SYSTEMMEM,&copy,nullptr))&&copy
+       &&SUCCEEDED(device->GetRenderTargetData(back,copy))){
+        D3DLOCKED_RECT locked{};
+        if(SUCCEEDED(copy->LockRect(&locked,nullptr,0))){
+            applyLook(static_cast<uint8_t*>(locked.pBits),size_t(locked.Pitch),desc.Width,desc.Height,2,1,0,l);
+            copy->UnlockRect();
+            if(SUCCEEDED(device->CreateOffscreenPlainSurface(desc.Width,desc.Height,desc.Format,D3DPOOL_DEFAULT,&upload,nullptr))&&upload
+               &&SUCCEEDED(device->UpdateSurface(copy,nullptr,upload,nullptr))){
+                device->StretchRect(upload,nullptr,back,nullptr,D3DTEXF_NONE);
+                lookCache=upload;upload=nullptr;lookCacheGen=gen;lookCacheW=desc.Width;lookCacheH=desc.Height;
+            }
+        }
+    }
+    if(upload)upload->Release();if(copy)copy->Release();back->Release();
+}
 void capturePhoto(IDirect3DDevice9* device){
     IDirect3DSurface9 *back=nullptr,*resolved=nullptr,*copy=nullptr;
     if(FAILED(device->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back))||!back){NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Photo: no back buffer");return;}
@@ -219,7 +296,19 @@ void capturePhoto(IDirect3DDevice9* device){
                 }
             }
             copy->UnlockRect();
-            std::lock_guard<std::mutex> lock(photoMutex);photoPixels.swap(pixels);photoWidth=desc.Width;photoHeight=desc.Height;done=true;
+            // the picture's look, then the part the crop keeps
+            PhotoLook l=currentLook();
+            if(!neutral(l))applyLook(pixels.data(),size_t(desc.Width)*4,desc.Width,desc.Height,0,1,2,l);
+            unsigned x0=unsigned(std::lround(l.crop[0]*desc.Width)),y0=unsigned(std::lround(l.crop[1]*desc.Height));
+            unsigned x1=unsigned(std::lround(l.crop[2]*desc.Width)),y1=unsigned(std::lround(l.crop[3]*desc.Height));
+            x1=std::min(x1,desc.Width);y1=std::min(y1,desc.Height);
+            unsigned outW=desc.Width,outH=desc.Height;
+            if(x1>x0+8&&y1>y0+8&&(x0||y0||x1<desc.Width||y1<desc.Height)){
+                outW=x1-x0;outH=y1-y0;std::vector<uint8_t> kept(size_t(outW)*outH*4);
+                for(unsigned y=0;y<outH;++y)std::memcpy(kept.data()+size_t(outW)*4*y,pixels.data()+(size_t(desc.Width)*(y0+y)+x0)*4,size_t(outW)*4);
+                pixels.swap(kept);
+            }
+            std::lock_guard<std::mutex> lock(photoMutex);photoPixels.swap(pixels);photoWidth=outW;photoHeight=outH;done=true;
         }
     }
     NFS_RUNTIME_LOG(done?ANDROID_LOG_INFO:ANDROID_LOG_WARN,"NFSU2","Photo: %s %ux%u format %u",done?"captured":"not captured",desc.Width,desc.Height,unsigned(desc.Format));
@@ -227,6 +316,14 @@ void capturePhoto(IDirect3DDevice9* device){
 }
 }
 void requestD3D9Photo(){photoWanted=true;}
+void setD3D9PhotoLook(bool live,const float v[12]){
+    std::lock_guard<std::mutex> lock(lookMutex);
+    photoLook.exposure=v[0];photoLook.contrast=v[1];photoLook.saturation=v[2];
+    for(int i=0;i<3;++i)photoLook.tint[i]=v[3+i];
+    photoLook.fade=v[6];photoLook.vignette=v[7];
+    for(int i=0;i<4;++i)photoLook.crop[i]=std::min(1.f,std::max(0.f,v[8+i]));
+    lookLive=live;++lookGen;
+}
 std::vector<uint8_t> takeD3D9Photo(unsigned* width,unsigned* height){
     std::lock_guard<std::mutex> lock(photoMutex);std::vector<uint8_t> out;out.swap(photoPixels);
     *width=out.empty()?0:photoWidth;*height=out.empty()?0:photoHeight;return out;
@@ -249,6 +346,8 @@ uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumen
         auto source=static_cast<const RECT*>(pointer(args[1])),destination=static_cast<const RECT*>(pointer(args[2]));
         auto dirty=static_cast<const RGNDATA*>(pointer(args[4]));
         if(kind==2&&photoWanted.exchange(false))capturePhoto(static_cast<IDirect3DDevice9*>(object));
+        if(kind==2&&lookLive.load())previewLook(static_cast<IDirect3DDevice9*>(object));
+        else if(kind==2&&lookCache)releaseLookCache();
         return kind==2?static_cast<IDirect3DDevice9*>(object)->Present(source,destination,window,dirty):
             static_cast<IDirect3DSwapChain9*>(object)->Present(source,destination,window,dirty,args[5]);
     }
@@ -326,6 +425,7 @@ uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumen
         case 9:{*argumentCount=2;D3DDEVICE_CREATION_PARAMETERS p{};HRESULT status=device->GetCreationParameters(&p);if(SUCCEEDED(status)){write(args[1],p.AdapterOrdinal);write(args[1]+4,p.DeviceType);write(args[1]+8,0xf0000301);write(args[1]+12,p.BehaviorFlags);}return status;}
         case 13:{*argumentCount=3;auto p=presentation(args[1]);IDirect3DSwapChain9* result=nullptr;HRESULT status=device->CreateAdditionalSwapChain(&p,&result);write(args[2],SUCCEEDED(status)?wrap(result,Kind::SwapChain):0);return status;}
         case 16:{*argumentCount=2;auto p=presentation(args[1]);HRESULT status=D3DERR_DEVICELOST;
+            releaseLookCache();   // a default-pool surface of ours would keep Reset from succeeding
             // DXVK throws (DxvkError) when it cannot rebuild the swap chain; Windows
             // would report a lost device, which the game retries (Mali G615 report).
             // The old Android window can stay busy for a moment: retry once before giving up.

@@ -22,13 +22,19 @@ void nfs_ghost_status(int out[4]);          /* flags (1 chosen, 2 active now, 4 
 void nfs_ghost_ov_contact(void);            /* wraps 0x5B2610, 0x44AC10 */
 void nfs_ghost_ov_camera_cars(void);
 /* Photo mode (photo.c): the world stands, the HUD goes, the camera comes loose from the car. */
-enum { PHOTO_OPEN = 1, PHOTO_MOVE, PHOTO_LIFT, PHOTO_DRAG, PHOTO_ZOOM, PHOTO_ROLL, PHOTO_MODE, PHOTO_RESET };
+enum { PHOTO_OPEN = 1, PHOTO_MOVE, PHOTO_LIFT, PHOTO_DRAG, PHOTO_ZOOM, PHOTO_ROLL, PHOTO_MODE, PHOTO_RESET, PHOTO_PATH, PHOTO_CARS };
+enum { PHOTO_PATH_CLEAR = 0, PHOTO_PATH_ADD = 1, PHOTO_PATH_PLAY = 2, PHOTO_PATH_STOP = 3 };
 void nfs_photo_frame(void);                 /* guest thread, after each Present */
 void nfs_photo_input(int cmd, int a, int b);/* the touch controls (any thread) */
-void nfs_photo_status(int out[4]);          /* flags (1 it can open or is on, 2 on, 4 the free camera), field of view
-                                               and tilt (1/10 degree), times opened */
+int nfs_photo_still(void);                  /* the camera stands still (the live look's cache) */
+void nfs_photo_status(int out[6]);          /* flags (1 it can open or is on, 2 on, 4 the free camera), field of view
+                                               and tilt (1/10 degree), times opened, the path's points, it plays */
 void nfs_photo_ov_frontend(void);           /* wraps 0x5378C0, 0x5C7EC0 */
 void nfs_photo_ov_view(void);
+void nfs_photo_ov_car(void);                /* wraps 0x620AE0, 0x6162E0, 0x615A10, 0x615630: the cars shown */
+void nfs_photo_ov_car_parts(void);
+void nfs_photo_ov_car_lights(void);
+void nfs_photo_ov_car_flares(void);
 #ifdef __cplusplus
 }
 #endif

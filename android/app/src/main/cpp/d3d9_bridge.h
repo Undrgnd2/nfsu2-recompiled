@@ -16,3 +16,7 @@ uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumen
 #include <vector>
 void requestD3D9Photo();
 std::vector<uint8_t> takeD3D9Photo(unsigned* width,unsigned* height);
+// Photo mode's look (undrgnd2.eu's panel): exposure, contrast, saturation, tint r g b, fade, vignette, then the crop
+// kept (left, top, right, bottom, 0 .. 1). live: shown over the game while photo mode is on; the picture taken gets it
+// too, cropped.
+void setD3D9PhotoLook(bool live,const float values[12]);

@@ -53,6 +53,10 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     /* photo mode, src/runtime/photo.c */
     { 0x005378C0u, nfs_photo_ov_frontend },
     { 0x005C7EC0u, nfs_photo_ov_view },
+    { 0x00620AE0u, nfs_photo_ov_car },
+    { 0x006162E0u, nfs_photo_ov_car_parts },
+    { 0x00615A10u, nfs_photo_ov_car_lights },
+    { 0x00615630u, nfs_photo_ov_car_flares },
 #endif
 };
 

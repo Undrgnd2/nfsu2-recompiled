@@ -14,7 +14,11 @@
  *  - the sound manager plays at the volumes 0x469050 points it to: a copy without effects, engine and tires while
  *    the world stands (it keeps every sound going), the Audio options' after.
  * Only in the world while the player drives (a race, free roam), not in a race over the network (LAN).
- * Not here yet: the web's panel (lens, look, crop, scene), the camera path, the frames added up into one picture.
+ * The panel's (photo_panel in the touch controls): the cars in the picture (the car renders 0x620AE0, 0x6162E0 and
+ * their lights 0x615A10, 0x615630 skipped for the ones hidden, as the web's photo_hides), and a camera path (points
+ * marked where the camera looks from and at, played through along a Catmull-Rom curve, slowly at its start and end).
+ * The picture's look (filter, brightness, vignette, crop) is the renderer's: d3d9_bridge.cpp applyPhotoLook.
+ * Not here yet: the lens (blur, focus), the frames added up into one picture.
  */
 #ifdef NFS_DRIFT_MODE
 #ifndef _POSIX_C_SOURCE
@@ -35,6 +39,10 @@ int nfs_guest_readable(uint32_t va, uint32_t bytes);
 uint32_t nfs_guest_call(uint32_t va, uint32_t ecx, const uint32_t *args, unsigned count, unsigned cleanup);
 void sub_005378C0_orig(void);
 void sub_005C7EC0_orig(void);
+void sub_00620AE0_orig(void);
+void sub_006162E0_orig(void);
+void sub_00615A10_orig(void);
+void sub_00615630_orig(void);
 
 #define G_FLOW         0x008654a4u
 #define G_RACE         0x00890118u
@@ -85,10 +93,18 @@ void sub_005C7EC0_orig(void);
 #define DEG            0.017453292f
 #define PI             3.14159265f
 #define SNAP_M         0.001f
+#define CAR_RENDER     0x554u        /* Car: its CarRenderInfo (whose +0 is the car) */
+#define CAR_DRIVER     0x24u         /* 1 the player, 3 an AI racer, 4 traffic */
+#define DRIVER_TRAFFIC 4u
+#define PATH_POINTS       8
+#define PATH_S         10.f
+#define PATH_S_MAX     120.f
 
 /* what the touch controls send (any thread) */
-static struct { atomic_int open, mx, my, mz, dx, dy, zoom, roll, mode, reset; } I;
-static atomic_int s_status[4];
+static struct { atomic_int open, mx, my, mz, dx, dy, zoom, roll, mode, reset, path, path_ms, cars; } I = { .path = -1, .cars = -1 };
+static atomic_int s_status[6];
+/* the cars shown (PHOTO_CARS): all, without the traffic, the player's only, none */
+enum { CARS_ALL = 0, CARS_NO_TRAFFIC = 1, CARS_MINE = 2, CARS_NONE = 3 };
 
 static struct {
     int on, free, n;
@@ -97,6 +113,11 @@ static struct {
     float yaw, pitch, dist, off[3], eye[3];
     float yaw0, pitch0, dist0, off0[3], fov0, fov, roll;
     float se[3], sl[3];
+    int cars;                                    /* CARS_* */
+    int path_n, path_play;
+    float path_e[PATH_POINTS][3], path_l[PATH_POINTS][3], path_fov[PATH_POINTS], path_roll[PATH_POINTS];   /* from the car's centre */
+    float path_t, path_s;
+    float last_e[3], last_l[3]; int still;       /* the camera as the last frame had it; frames it has not moved */
 } P;
 
 static int ok(uint32_t va, uint32_t n) { return va >= 0x10000u && nfs_guest_readable(va, n); }
@@ -211,6 +232,58 @@ static void leave(const char *why) {
     LOGI("Photo: off (%s)", why);
 }
 
+/* ---- the camera's path (as the web's) ---- */
+static float path_w(int k) {
+    float a = 0.f, b = 0.f;
+    for (int i = 0; i < 3; i++) {
+        float de = P.path_e[k + 1][i] - P.path_e[k][i], dl = P.path_l[k + 1][i] - P.path_l[k][i];
+        a += de * de; b += dl * dl;
+    }
+    return sqrtf(a) + 0.5f * sqrtf(b) + 0.2f;
+}
+static float cr(float p0, float p1, float p2, float p3, float u) {
+    return 0.5f * (2.f * p1 + (p2 - p0) * u + (2.f * p0 - 5.f * p1 + 4.f * p2 - p3) * u * u + (3.f * p1 - p0 - 3.f * p2 + p3) * u * u * u);
+}
+static void path_at(float x, float *e, float *l, float *fov, float *roll) {
+    int n = P.path_n;
+    float total = 0.f, s;
+    for (int k = 0; k + 1 < n; k++) total += path_w(k);
+    s = x * total;
+    int k = 0;
+    for (; k + 2 < n && s > path_w(k); k++) s -= path_w(k);
+    float u = clampf(s / path_w(k), 0.f, 1.f);
+    int a = k > 0 ? k - 1 : 0, b = k, c = k + 1, d = k + 2 < n ? k + 2 : n - 1;
+    for (int i = 0; i < 3; i++) {
+        e[i] = cr(P.path_e[a][i], P.path_e[b][i], P.path_e[c][i], P.path_e[d][i], u);
+        l[i] = cr(P.path_l[a][i], P.path_l[b][i], P.path_l[c][i], P.path_l[d][i], u);
+    }
+    *fov = clampf(cr(P.path_fov[a], P.path_fov[b], P.path_fov[c], P.path_fov[d], u), FOV_MIN, FOV_MAX);
+    *roll = clampf(cr(P.path_roll[a], P.path_roll[b], P.path_roll[c], P.path_roll[d], u), -ROLL_MAX, ROLL_MAX);
+}
+/* the path stops: the free camera where it is, so the input goes on from there */
+static void path_stop(const float *cc) {
+    if (!P.path_play) return;
+    P.path_play = 0;
+    float v[3] = { P.sl[0] - P.se[0], P.sl[1] - P.se[1], P.sl[2] - P.se[2] }, l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    P.free = 1;
+    for (int i = 0; i < 3; i++) P.eye[i] = P.se[i] - cc[i];
+    if (l > 1e-3f) { P.yaw = atan2f(v[1], v[0]); P.pitch = clampf(asinf(clampf(v[2] / l, -1.f, 1.f)), -85.f * DEG, 85.f * DEG); }
+    LOGI("Photo: the path stopped");
+}
+static void path_input(const float *cc) {
+    int pa = atomic_exchange(&I.path, -1), ms = atomic_load(&I.path_ms);
+    if (pa == PHOTO_PATH_CLEAR) { path_stop(cc); P.path_n = 0; LOGI("Photo: the path cleared"); }
+    else if (pa == PHOTO_PATH_ADD && !P.path_play && P.path_n < PATH_POINTS) {
+        int k = P.path_n++;
+        for (int i = 0; i < 3; i++) { P.path_e[k][i] = P.se[i] - cc[i]; P.path_l[k][i] = P.sl[i] - cc[i]; }
+        P.path_fov[k] = P.fov; P.path_roll[k] = P.roll;
+        LOGI("Photo: path point %d", P.path_n);
+    } else if (pa == PHOTO_PATH_PLAY && P.path_n >= 2) {
+        P.path_play = 1; P.path_t = 0.f; P.path_s = ms > 0 ? clampf((float)ms / 1000.f, 1.f, PATH_S_MAX) : PATH_S;
+        LOGI("Photo: the path plays: %d points in %.1f s", P.path_n, (double)P.path_s);
+    } else if (pa == PHOTO_PATH_STOP) path_stop(cc);
+}
+
 static void steer(uint32_t car, float dt) {
     float mx = (float)atomic_load(&I.mx) / 1000.f, my = (float)atomic_load(&I.my) / 1000.f, mz = (float)atomic_load(&I.mz) / 1000.f;
     float ddx = (float)atomic_exchange(&I.dx, 0) / 10000.f, ddy = (float)atomic_exchange(&I.dy, 0) / 10000.f;
@@ -218,6 +291,16 @@ static void steer(uint32_t car, float dt) {
     int md = atomic_exchange(&I.mode, 0), rst = atomic_exchange(&I.reset, 0);
     float cc[3], d[3], e[3], l[3];
     centre(car, cc);
+    path_input(cc);
+    if (P.path_play && (rst || md)) path_stop(cc);
+    if (P.path_play) {                           /* the path: the camera goes along it, the input waits */
+        P.path_t += dt;
+        float x = clampf(P.path_t / P.path_s, 0.f, 1.f), pe[3], pl[3];
+        path_at(x * x * (3.f - 2.f * x), pe, pl, &P.fov, &P.roll);
+        for (int i = 0; i < 3; i++) { P.se[i] = cc[i] + pe[i]; P.sl[i] = cc[i] + pl[i]; }
+        if (x >= 1.f) path_stop(cc);
+        return;
+    }
     if (rst) {
         P.free = 0; memcpy(P.off, P.off0, sizeof P.off);
         P.yaw = P.yaw0; P.pitch = P.pitch0; P.dist = P.dist0; P.fov = P.fov0; P.roll = 0;
@@ -286,10 +369,14 @@ void nfs_photo_input(int cmd, int a, int b) {
     case PHOTO_ROLL:  atomic_store(&I.roll, a); break;                  /* -1, 0, 1 held */
     case PHOTO_MODE:  atomic_store(&I.mode, 1); break;
     case PHOTO_RESET: atomic_store(&I.reset, 1); break;
+    case PHOTO_PATH:  atomic_store(&I.path_ms, b); atomic_store(&I.path, a); break;   /* PHOTO_PATH_*; play: its time, ms */
+    case PHOTO_CARS:  atomic_store(&I.cars, a); break;                  /* CARS_* */
     default: break;
     }
 }
-void nfs_photo_status(int out[4]) { for (int i = 0; i < 4; i++) out[i] = atomic_load(&s_status[i]); }
+/* the camera has stood still a few frames (d3d9_bridge.cpp: the live look is worked out once, then shown as it is) */
+int nfs_photo_still(void) { return P.on && P.still >= 3; }
+void nfs_photo_status(int out[6]) { for (int i = 0; i < 6; i++) out[i] = atomic_load(&s_status[i]); }
 
 void nfs_photo_frame(void) {
     double t = now_s();
@@ -302,12 +389,26 @@ void nfs_photo_frame(void) {
     if (P.on && (why || req == 2)) leave(req == 2 ? "closed" : why);
     else if (!P.on && !why && req == 1) enter();
     else if (!P.on && req == 1) LOGI("Photo: not opened (%s)", why);
+    int cs = atomic_exchange(&I.cars, -1);
+    if (cs >= CARS_ALL && cs <= CARS_NONE && cs != P.cars) {
+        P.cars = cs;
+        static const char *const names[] = { "all", "all but the traffic", "the player's only", "none" };
+        LOGI("Photo: cars shown: %s", names[cs]);
+    }
     uint32_t pl = player(), car = car_of(pl);
-    if (P.on && car) { steer(car, dt); place(pl); }
+    if (P.on && car) {
+        steer(car, dt); place(pl);
+        float far = 0.f;
+        for (int i = 0; i < 3; i++) far = fmaxf(far, fmaxf(fabsf(P.se[i] - P.last_e[i]), fabsf(P.sl[i] - P.last_l[i])));
+        P.still = far < 1e-4f && !P.path_play ? P.still + 1 : 0;
+        memcpy(P.last_e, P.se, sizeof P.last_e); memcpy(P.last_l, P.sl, sizeof P.last_l);
+    } else P.still = 0;
     atomic_store(&s_status[0], (why == 0 || P.on ? 1 : 0) | (P.on ? 2 : 0) | (P.free ? 4 : 0));
     atomic_store(&s_status[1], (int)lrintf(P.fov * 10.f));
     atomic_store(&s_status[2], (int)lrintf(P.roll * 10.f));
     atomic_store(&s_status[3], P.n);
+    atomic_store(&s_status[4], P.path_n);
+    atomic_store(&s_status[5], P.path_play);
 }
 
 /* The front end's frame (0x5378C0, cdecl, no arguments): the HUD and any screen; not while photo mode is on. */
@@ -339,4 +440,20 @@ void nfs_photo_ov_view(void) {
     sub_005C7EC0_orig();
     if (cam) { memcpy((void *)ADDR(cam), keep, sizeof keep); MEM16(cam + CAM_FOV) = keep_fov; }
 }
+
+/* ---- the cars in the picture: a car render whose car the panel hides is skipped ---- */
+static int photo_hides(uint32_t ri) {
+    if (!P.on || P.cars == CARS_ALL) return 0;
+    if (P.cars == CARS_NONE) return 1;
+    uint32_t mine = car_of(player());
+    if (mine && ri == rd(mine + CAR_RENDER)) return 0;
+    if (P.cars == CARS_MINE) return 1;
+    uint32_t car = ok(ri, 4) ? MEM32(ri) : 0;                 /* (a render info's car at its +0) */
+    return ok(car, 0x9e0) && MEM32(car + CAR_DRIVER) == DRIVER_TRAFFIC;
+}
+/* all thiscall: the render info in ecx */
+void nfs_photo_ov_car(void)        { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } sub_00620AE0_orig(); }
+void nfs_photo_ov_car_parts(void)  { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } sub_006162E0_orig(); }
+void nfs_photo_ov_car_lights(void) { if (photo_hides(g_ecx)) { g_esp += 4 + 0x0c; return; } sub_00615A10_orig(); }
+void nfs_photo_ov_car_flares(void) { if (photo_hides(g_ecx)) { g_esp += 4 + 0x18; return; } sub_00615630_orig(); }
 #endif
