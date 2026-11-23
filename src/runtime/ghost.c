@@ -145,7 +145,32 @@ static int hydraulics(void) {
     return mps * 2.237f <= 10.f ? 2 : 1;
 }
 
+/* The touch Career status button presses the virtual pad's D-pad down (guest_input.inc), the game's Legend in
+ * nfsu2-web's pad layout (dinput_pad.c g_prof_game, POV 0 down = action 0x12).  The game's own defaults for a pad it
+ * has no profile for (0x5C11A0 after the lookup 0x5B81B0) put the D-pad on the driving (POV 0 down: 0 or 2, up 1,
+ * left 3, right 4).  Its input channels (0x874C40 + n * 0x370, +0x230 the device's slot, -1 free) keep the in-game
+ * table at +0x18 (buttons 0..15, then per POV down, up, left, right): a pad's channel still on those defaults gets
+ * Legend on D-pad down, once; a binding the player made there stays. */
+#define G_CHANNELS      0x00874c40u
+#define CHANNEL_SZ      0x370u
+#define ACTION_LEGEND   0x12u
+static void pad_legend(void) {
+    static uint32_t done;                          /* channels patched (bits) */
+    for (uint32_t n = 0; n < 8u; n++) {
+        uint32_t ch = G_CHANNELS + n * CHANNEL_SZ;
+        if (!ok(ch, CHANNEL_SZ)) return;
+        if (MEM32(ch + 0x230u) == 0xffffffffu) { done &= ~(1u << n); continue; }
+        if (done & 1u << n) continue;
+        uint32_t down = MEM32(ch + 0x58u);
+        if (MEM32(ch + 0x60u) != 3u || MEM32(ch + 0x64u) != 4u || (down != 0u && down != 2u)) continue;
+        MEM32(ch + 0x58u) = ACTION_LEGEND;
+        done |= 1u << n;
+        LOGI("Pad: input channel %u (%08x): D-pad down is the Career status (Legend) now", n, ch);
+    }
+}
+
 void nfs_ghost_frame(void) {
+    pad_legend();
     int n = atomic_exchange(&s_presses, 0), roam = roaming();
     G.step++;
     if (G.note > 0) G.note--;
