@@ -490,14 +490,15 @@ final class RacingControlsView extends View {
         drawGhost(canvas);
         if(editing) {
             float w=getWidth()/scale;
-            drawToolbarButton(canvas,new RectF(w/2-250,18,w/2-150,58),"Défaut");
-            drawToolbarButton(canvas,new RectF(w/2-142,18,w/2-102,58),"−");
-            drawToolbarButton(canvas,new RectF(w/2-94,18,w/2-54,58),"+");
-            drawToolbarButton(canvas,new RectF(w/2-46,18,w/2+58,58),"Valider");
-            drawToolbarButton(canvas,new RectF(w/2+66,18,w/2+170,58),"Annuler");
-            drawToolbarButton(canvas,new RectF(w/2-65,70,w/2+65,106),"Menu");
+            float tb=toolbarTop();
+            drawToolbarButton(canvas,new RectF(w/2-250,tb,w/2-150,tb+40),"Défaut");
+            drawToolbarButton(canvas,new RectF(w/2-142,tb,w/2-102,tb+40),"−");
+            drawToolbarButton(canvas,new RectF(w/2-94,tb,w/2-54,tb+40),"+");
+            drawToolbarButton(canvas,new RectF(w/2-46,tb,w/2+58,tb+40),"Valider");
+            drawToolbarButton(canvas,new RectF(w/2+66,tb,w/2+170,tb+40),"Annuler");
+            drawToolbarButton(canvas,new RectF(w/2-65,tb+52,w/2+65,tb+88),"Menu");
             label.setTextSize(13);label.setColor(0xCCFFFFFF);
-            canvas.drawText(selected==null?"Touche un bouton pour le déplacer, − et + pour sa taille":"Glisse pour déplacer · − et + pour la taille",w/2,128,label);
+            canvas.drawText(selected==null?"Touche un bouton pour le déplacer, − et + pour sa taille":"Glisse pour déplacer · − et + pour la taille",w/2,tb+110,label);
         }
         canvas.restore();
     }
@@ -760,6 +761,9 @@ final class RacingControlsView extends View {
     }
     private float bottomOfDrift() {return 74;}
     private static String fmt(int value) {return String.format(java.util.Locale.FRANCE,"%,d",value);}
+    /** The layout editor's toolbar, in the middle of the screen's height: clear of the small buttons along the top
+     *  and of the pedals and steering along the bottom, so each can be picked and moved. */
+    private float toolbarTop() {return getHeight()/scale/2-80;}
     private void drawToolbarButton(Canvas canvas,RectF area,String name) {
         fill.setColor(NAVY);canvas.drawRoundRect(area,area.height()/2,area.height()/2,fill);
         line.setStrokeWidth(1.5f);line.setColor(0x663FC1F5);canvas.drawRoundRect(area,area.height()/2,area.height()/2,line);
@@ -787,8 +791,9 @@ final class RacingControlsView extends View {
         int action=e.getActionMasked(),index=e.getActionIndex();
         float x=e.getX(index)/scale,y=e.getY(index)/scale,w=getWidth()/scale;
         if(action==MotionEvent.ACTION_DOWN) {
-            if(x>=w/2-65&&x<=w/2+65&&y>=70&&y<=106) {showMenu();return true;}
-            if(y>=18&&y<=58) {
+            float tb=toolbarTop();
+            if(x>=w/2-65&&x<=w/2+65&&y>=tb+52&&y<=tb+88) {showMenu();return true;}
+            if(y>=tb&&y<=tb+40) {
                 boolean handled=true;
                 if(x>=w/2-250&&x<=w/2-150) {for(Control c:controls)c.area.set(c.original);selected=null;}
                 else if(x>=w/2-142&&x<=w/2-102)resizeSelected(-.1f);
