@@ -38,3 +38,4 @@
 0x00482279  drift mode: music manager test al, al (a drift event?) - free roam's songs play on (drift.c)
 0x00471B95  drift mode: in-game mix test eax, eax ([0x890104]) - the music channel stays up (drift.c)
 0x00547689  garage: the shop buy, the career car among slots 6-10 when not among the 5 (garage.c; 0x547685 is a branch target)
+0x00726336  sound lead: after mov word [0x8183e4], 0xbb8, the sound thread margin window 300 wake-ups, not 3000 (sndlead)
