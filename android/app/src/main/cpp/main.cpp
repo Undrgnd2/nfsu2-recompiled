@@ -332,6 +332,7 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     jintArray out=env->NewIntArray(6);if(out)env->SetIntArrayRegion(out,0,6,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTone(JNIEnv*,jclass,jfloat exposure,jfloat white){setD3D9Tone(exposure,white);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoLook(JNIEnv* env,jclass,jboolean live,jfloatArray values){
     float v[12]={1,1,1,1,1,1,0,0,0,0,1,1};
     if(values&&env->GetArrayLength(values)>=12)env->GetFloatArrayRegion(values,0,12,v);

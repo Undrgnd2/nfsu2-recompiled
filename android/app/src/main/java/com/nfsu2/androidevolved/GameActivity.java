@@ -46,6 +46,7 @@ public final class GameActivity extends NativeActivity {
     private static native void nativePhotoShot();
     private static native int[] nativePhotoTake();
     private static native void nativePhotoLook(boolean live, float[] values);
+    private static native void nativeTone(float exposure, float white);
     private final boolean[] touchKeys=new boolean[256],sentKeys=new boolean[256];
     private boolean tiltLeft,tiltRight,tiltEnabled,tiltCalibrate=true;
     private float tiltFiltered,tiltNeutral,tiltSensitivity=1;
@@ -260,6 +261,7 @@ public final class GameActivity extends NativeActivity {
             @Override public void input(int cmd, int a, int b) {nativePhoto(cmd, a, b);}
             @Override public void shot() {takePhoto();}
             @Override public void look(boolean live, float[] values) {nativePhotoLook(live, values);}
+            @Override public void tone(float exposure, float white) {nativeTone(exposure, white);}
         });
         controlsWindow = new PopupWindow(touchControls, ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, false);

@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -192,7 +192,37 @@ final class RacingControlsView extends View {
         add(w-R-104-70,h-B-58,56,"t:↻",PH_RR);
         add(w-R-104-70,h-B-58-66,56,"t:↺",PH_RL);
     }
-    void setPhotoHooks(Photo hooks) {photo=hooks;}
+    void setPhotoHooks(Photo hooks) {photo=hooks;sendTone();}
+    // ---- Exposure and White Level (nfsu2-web tonemenu.c): the whole picture, kept in the touch controls' preferences ----
+    private int toneExposure() {return layouts.getInt("tone.exposure",10);}   // 0 .. 20: -1.0 .. +1.0 stops
+    private int toneWhite() {return layouts.getInt("tone.white",12);}         // 0 .. 12: 40 % .. 100 %
+    private void sendTone() {if(photo!=null)photo.tone((toneExposure()-10)/10f,(40+5*toneWhite())/100f);}
+    private String toneSummary() {
+        return String.format(java.util.Locale.FRANCE,"%+.1f · %d %%",(toneExposure()-10)/10f,40+5*toneWhite());
+    }
+    private void showTone() {
+        Context ctx=getContext();
+        android.widget.LinearLayout box=new android.widget.LinearLayout(ctx);box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(px(22),px(10),px(22),px(6));
+        toneSlider(box,"Exposition","tone.exposure",10,20,p->String.format(java.util.Locale.FRANCE,"%+.1f",(p-10)/10f));
+        toneSlider(box,"Niveau de blanc","tone.white",12,12,p->(40+5*p)+" %");
+        new AlertDialog.Builder(ctx).setTitle("Exposition et niveau de blanc").setView(box)
+            .setNeutralButton("Défaut",(d,w)->{layouts.edit().remove("tone.exposure").remove("tone.white").apply();sendTone();})
+            .setPositiveButton("OK",null).show();
+    }
+    private void toneSlider(android.widget.LinearLayout box,String name,String key,int start,int max,java.util.function.IntFunction<String> shown) {
+        android.widget.LinearLayout top=new android.widget.LinearLayout(getContext());
+        top.addView(menuText(name,16,0xFFFFFFFF,false),new android.widget.LinearLayout.LayoutParams(0,-2,1));
+        android.widget.TextView value=menuText(shown.apply(layouts.getInt(key,start)),15,MENU_VALUE,false);top.addView(value);
+        android.widget.SeekBar bar=new android.widget.SeekBar(getContext());bar.setMax(max);bar.setProgress(layouts.getInt(key,start));
+        bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar s,int p,boolean user){if(!user)return;
+                layouts.edit().putInt(key,p).apply();value.setText(shown.apply(p));sendTone();}
+            @Override public void onStartTrackingTouch(android.widget.SeekBar s){}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar s){}
+        });
+        box.addView(top);box.addView(bar);
+    }
     // ---- photo mode's panel (undrgnd2.eu's): the picture's look, the cars shown, the camera's path ----
     private static final String[] FILTER_IDS={"none","bw","warm","cool","vivid","faded"};
     private static final String[] FILTER_NAMES={"Aucun","Noir et blanc","Chaud","Froid","Vif","Délavé"};
@@ -896,6 +926,7 @@ final class RacingControlsView extends View {
         menuRow(rows,"Dispositions","Enregistrer · Charger",0,()->new AlertDialog.Builder(getContext()).setTitle("Dispositions")
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
+        menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
         menuRow(rows,"Limite de FPS",null,0,configureFrameLimit);
         menuRow(rows,"Quitter le jeu",null,0xFFFF7A6E,()->{if(ctx instanceof android.app.Activity)((android.app.Activity)ctx).finish();});
         android.widget.TextView foot=menuText("undrgnd2.eu · le menu du jeu reste sur Pause",13,0x99FFFFFF,false);

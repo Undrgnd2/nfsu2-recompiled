@@ -234,6 +234,34 @@ bool deviceResetPending=false;
 extern "C" int nfs_photo_still(void);
 namespace {
 std::atomic<bool> photoWanted{false};
+// Exposure and White Level (nfsu2-web's tonemenu.c, MIT th0mk; the page applies them in its last pass, gpu wgsl TONE):
+// each channel times 2^exposure (at most 1), then a value above KNEE * white bends down so that 1 lands on white (a
+// rational shoulder, slope 1 where it starts). Both are per channel, so here they are DXVK's gamma ramp (applied in
+// its presenter, the whole picture: menus and HUD too; photo mode's picture, read from the back buffer, keeps the
+// colours as drawn), over the game's own ramp if it sets one. Set from the touch controls' menu (any thread), applied
+// at the next Present on the game's thread.
+std::atomic<float> toneMult{1.f},toneWhite{1.f};
+std::atomic<uint32_t> toneGen{0};
+uint32_t toneApplied=0;
+D3DGAMMARAMP gameRamp{};bool gameRampSet=false;
+float toneCurve(float y){
+    const float knee=0.8f,white=toneWhite.load();
+    y=std::min(y*toneMult.load(),1.f);
+    float s=knee*white;
+    if(!(y>s)||white>=1.f)return y;
+    float m=(1.f-s)/(white-s),t=(y-s)/(1.f-s);
+    return s+(white-s)*(m*t)/(1.f+(m-1.f)*t);
+}
+void applyToneRamp(IDirect3DDevice9* device){
+    toneApplied=toneGen.load();
+    D3DGAMMARAMP ramp{};
+    for(unsigned i=0;i<256;++i){
+        WORD* out[3]={&ramp.red[i],&ramp.green[i],&ramp.blue[i]};
+        const WORD in[3]={gameRamp.red[i],gameRamp.green[i],gameRamp.blue[i]};
+        for(int c=0;c<3;++c){float x=gameRampSet?in[c]/65535.f:i/255.f;*out[c]=WORD(std::lround(std::min(1.f,std::max(0.f,toneCurve(x)))*65535.f));}
+    }
+    device->SetGammaRamp(0,D3DSGR_NO_CALIBRATION,&ramp);
+}
 std::mutex photoMutex;std::vector<uint8_t> photoPixels;unsigned photoWidth=0,photoHeight=0;
 // the look (nfsu2-web gpu/wgsl.ts fs_look): exposure, contrast, saturation, tint, fade, vignette over the kept part
 struct PhotoLook{float exposure=1,contrast=1,saturation=1,tint[3]={1,1,1},fade=0,vignette=0,crop[4]={0,0,1,1};};
@@ -355,6 +383,10 @@ void capturePhoto(IDirect3DDevice9* device){
 }
 }
 void requestD3D9Photo(){photoWanted=true;}
+void setD3D9Tone(float exposure,float white){
+    toneMult=std::exp2(std::min(1.f,std::max(-1.f,exposure)));toneWhite=std::min(1.f,std::max(0.4f,white));toneGen.fetch_add(1);
+    NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Tone: exposure %+.1f, white level %.0f %%",double(exposure),double(toneWhite.load()*100.f));
+}
 void setD3D9PhotoLook(bool live,const float v[12]){
     std::lock_guard<std::mutex> lock(lookMutex);
     photoLook.exposure=v[0];photoLook.contrast=v[1];photoLook.saturation=v[2];
@@ -384,6 +416,7 @@ uint32_t dispatchGuestD3D9(uint32_t token,const uint32_t* args,uint32_t* argumen
         if(!window||deviceResetPending)return D3DERR_DEVICELOST;
         auto source=static_cast<const RECT*>(pointer(args[1])),destination=static_cast<const RECT*>(pointer(args[2]));
         auto dirty=static_cast<const RGNDATA*>(pointer(args[4]));
+        if(kind==2&&toneGen.load()!=toneApplied)applyToneRamp(static_cast<IDirect3DDevice9*>(object));
         if(kind==2&&photoWanted.exchange(false))capturePhoto(static_cast<IDirect3DDevice9*>(object));
         if(kind==2&&lookLive.load())previewLook(static_cast<IDirect3DDevice9*>(object));
         else if(kind==2&&lookCache)releaseLookCache();

@@ -20,3 +20,5 @@ std::vector<uint8_t> takeD3D9Photo(unsigned* width,unsigned* height);
 // kept (left, top, right, bottom, 0 .. 1). live: shown over the game while photo mode is on; the picture taken gets it
 // too, cropped.
 void setD3D9PhotoLook(bool live,const float values[12]);
+// Exposure (-1 .. +1 stops) and White Level (0.4 .. 1) over the whole picture (DXVK's gamma ramp), from the next Present.
+void setD3D9Tone(float exposure,float white);
