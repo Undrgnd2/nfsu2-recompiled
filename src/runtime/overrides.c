@@ -98,6 +98,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x0054E6E0u, nfs_garage_ov_helpbar },
     { 0x0052D330u, nfs_garage_ov_helplabel },
     { 0x004DFC50u, nfs_garage_ov_select },
+    /* the tuning graphs take a drag, src/runtime/tunegraph.c */
+    { 0x005654D0u, nfs_tune_ov_msg },
 #endif
 };
 
