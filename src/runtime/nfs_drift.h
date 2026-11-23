@@ -92,6 +92,10 @@ void nfs_garage_ov_helplabel(void);
 void nfs_garage_ov_select(void);
 void nfs_garage_swap_in(void);              /* cameras.c race setup wraps: the car driven from slots 6-10 ... */
 void nfs_garage_swap_out(void);
+void nfs_shop_ov_hud_msg(void);             /* specialties.c: wraps 0x563CF0, 0x56C420, 0x568740, 0x560550 */
+void nfs_shop_ov_hud_new(void);
+void nfs_shop_ov_ice_msg(void);
+void nfs_shop_ov_ice_new(void);
 void nfs_dyno_ov_msg(void);                 /* dyno.c: wraps 0x5647E0 */
 void nfs_tune_ov_msg(void);                 /* tunegraph.c: wraps 0x5654D0 */
 void nfs_sponsors_frame(void);              /* sponsors.c: Continue on the sponsor screens (once) */

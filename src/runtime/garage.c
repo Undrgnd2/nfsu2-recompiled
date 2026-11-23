@@ -257,13 +257,13 @@ void nfs_garage_ov_count(void) {
     int p = player_of(db);
     sub_00534850_orig();
     if (p < 0 || !g_blk || !(kinds & 4u)) return;
-    uint32_t n = g_eax, keep = g_eax;
+    uint32_t n = g_eax, keep = g_edx;
     for (unsigned i = 0; i < XN; i++) {
         uint32_t r = X_AT(p) + i * REC_SZ;
         if (!MEM32(r + R_USED) || !(MEM32(r + R_FLAGS) & kinds) || !MEM8(r + R_OWNED)) continue;
         if (gcall(MEM32(MEM32(r) + 4u), r, 0, 0) != 0xffffffffu) n++;
     }
-    (void)keep;
+    g_edx = keep;
     g_eax = n;
 }
 
@@ -294,11 +294,13 @@ static uint32_t garage_find(uint32_t db, uint32_t h) {
 }
 
 /* --- new careers, stages --- */
-void nfs_garage_ov_new_profile(void) { sub_0052A5D0_orig(); ensure(); }
+/* (guest calls after the original's: its eax and edx kept, they are scratch registers to the calls) */
+#define KEEP_RET(body) do { uint32_t ka_ = g_eax, kd_ = g_edx; body; g_eax = ka_; g_edx = kd_; } while (0)
+void nfs_garage_ov_new_profile(void) { sub_0052A5D0_orig(); KEEP_RET(ensure()); }
 void nfs_garage_ov_new_slots(void) {
     uint32_t db = g_ecx;
     sub_00516480_orig();
-    if (player_of(db) >= 0 && ensure()) xinit(db);
+    KEEP_RET(if (player_of(db) >= 0 && ensure()) xinit(db));
 }
 void nfs_garage_ov_new_career(void) { sub_00532830_orig(); if (g_blk) open_to(G_FECARS, 2u); }
 static int g_in_stage;
@@ -381,7 +383,9 @@ void nfs_garage_ov_dirty(void) {
     uint32_t kept = MEM32(g_ecx + FEDB_KEPT);
     sub_0052A4C0_orig();
     if ((g_eax & 0xffu) || !kept || !g_kept.on || !g_blk) return;
+    uint32_t ret = g_eax, ret_d = g_edx;
     state_of(G_FECARS + (uint32_t)g_kept.p * CARS_SZ, &g_now);
+    g_eax = ret; g_edx = ret_d;
     if (differ(&g_now, &g_kept.st)) { g_eax = (g_eax & ~0xffu) | 1u; LOGI("Garage: slots 6-10 changed: something to save"); }
 }
 
@@ -453,9 +457,13 @@ static void load_state(uint32_t db, const State *st) {
     if (db == G_FECARS && (st->drive || st->qr)) { g_back.on = 1; g_back.drive = st->drive; g_back.qr = st->qr; g_back.stand = st->stand; }
 }
 /* thiscall cars (in, size): a profile's cars into these; ours from its GARAGE file, or as the kept payload had them */
+static void cars_loaded_rest(uint32_t db, uint32_t in, uint32_t size);
 void nfs_garage_ov_cars_loaded(void) {
     uint32_t db = g_ecx, in = MEM32(g_esp + 4u), size = MEM32(g_esp + 8u);
     sub_00516850_orig();
+    KEEP_RET(cars_loaded_rest(db, in, size));
+}
+static void cars_loaded_rest(uint32_t db, uint32_t in, uint32_t size) {
     g_loads++;
     int p = player_of(db);
     if (p < 0 || !ensure()) return;
@@ -496,10 +504,14 @@ static void not_empty(uint32_t at, const char *what) {
     LOGI("Garage: %s was in an empty slot: now the first car", what);
 }
 /* thiscall profile (in, size, 1): a profile loaded; the cars driven as they were */
+static void profile_rest(uint32_t db);
 void nfs_garage_ov_profile(void) {
     uint32_t db = g_ecx + PR_CARS;
     g_topup = 0;
     sub_005344D0_orig();
+    KEEP_RET(profile_rest(db));
+}
+static void profile_rest(uint32_t db) {
     if (!g_blk || db != G_FECARS) return;
     if (g_topup) {
         uint32_t stage = MEM32(G_CAREER + K_STAGE);

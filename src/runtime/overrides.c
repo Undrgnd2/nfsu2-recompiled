@@ -102,6 +102,11 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x005654D0u, nfs_tune_ov_msg },
     /* the dyno keeps its setups, src/runtime/dyno.c */
     { 0x005647E0u, nfs_dyno_ov_msg },
+    /* the Car Specialties shop, src/runtime/specialties.c */
+    { 0x00563CF0u, nfs_shop_ov_hud_msg },
+    { 0x0056C420u, nfs_shop_ov_hud_new },
+    { 0x00568740u, nfs_shop_ov_ice_msg },
+    { 0x00560550u, nfs_shop_ov_ice_new },
 #endif
 };
 

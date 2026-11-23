@@ -49,3 +49,7 @@
 0x004DFC50  garage: the garage car select messages: Trade Car (garage.c)
 0x005654D0  tuning graphs: a drag moves the ECU and turbo graph dots (tunegraph.c)
 0x005647E0  dyno: Save Profile and Quit Tuning put the setups into the car first (dyno.c)
+0x00563CF0  specialties: Custom Gauges messages, Stock can be picked again (specialties.c)
+0x0056C420  specialties: the gauge list opens on the gauge fitted (specialties.c)
+0x00568740  specialties: UI_ICEMAIN messages, Trunk Audio opened from the list place (specialties.c)
+0x00560550  specialties: UI_ICEMAIN screen made, the list place back after Trunk Audio Back (specialties.c)

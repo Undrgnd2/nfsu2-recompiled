@@ -146,6 +146,8 @@ static void gps_hud(uint32_t pl) {
 void nfs_gps_ov_hud(void) {
     uint32_t pl = MEM32(g_esp + 4u);
     sub_004EC5A0_orig();
+    uint32_t ka = g_eax, kd = g_edx;       /* (scratch registers to the guest calls: the original's kept) */
     gps_hud(pl);
+    g_eax = ka; g_edx = kd;
 }
 #endif
