@@ -47,7 +47,10 @@ HRESULT lockPixels(uint32_t address,uint32_t subresource,const D3DSURFACE_DESC& 
 }
 void copyLockBack(uint32_t address,uint32_t subresource){
     auto lock=resourceLocks.find(lockKey(address,subresource));if(lock==resourceLocks.end())throw std::runtime_error("D3D9 unlock without guest lock");
-    auto& data=lock->second;if(!(data.flags&D3DLOCK_READONLY))for(uint32_t row=0;row<data.rows;++row)
+    auto& data=lock->second;
+    if(!(data.flags&D3DLOCK_READONLY)&&subresource<32)   // a texture's level: the pause menu's Save icon (d3d9_bridge.cpp)
+        saveIconUpload(address,subresource,static_cast<uint8_t*>(pointer(data.guest)),data.pitch,data.rowBytes,data.rows);
+    if(!(data.flags&D3DLOCK_READONLY))for(uint32_t row=0;row<data.rows;++row)
         if(!data.compressed.texture)std::memcpy(static_cast<uint8_t*>(data.native)+row*data.pitch,static_cast<const uint8_t*>(pointer(data.guest))+row*data.pitch,data.rowBytes);
     if(data.compressed.texture&&!(data.flags&D3DLOCK_READONLY)){
         auto& texture=*data.compressed.texture;auto& raw=texture.bytes(data.compressed.face,data.compressed.level);

@@ -125,6 +125,45 @@ D3DPRESENT_PARAMETERS presentation(uint32_t address){
     result.MultiSampleType=static_cast<D3DMULTISAMPLE_TYPE>(p[4]);result.MultiSampleQuality=p[5];result.SwapEffect=static_cast<D3DSWAPEFFECT>(p[6]);result.hDeviceWindow=dxvkAndroidGetWindowHandle();
     result.Windowed=p[8];result.EnableAutoDepthStencil=p[9];result.AutoDepthStencilFormat=static_cast<D3DFORMAT>(p[10]);result.Flags=p[11];result.FullScreen_RefreshRateInHz=p[12];result.PresentationInterval=D3DPRESENT_INTERVAL_IMMEDIATE;return result;
 }
+// ---- the pause menu's Save icon (savegame.c; nfsu2-web runtime/web/texrep_web.c) ----
+// The crib menu's Save item draws the front end's texture 0x8ADA6FD4, which the world does not have; the pause menu's
+// Save names INGAME_ICON_VOIP_MUTE instead, which nothing in the PC game draws. Both are 128 x 64 DXT3, each known by
+// its level 0 (CRC-32 and Adler-32; nothing else in the game data has either). The crib's levels are kept as the game
+// uploads them (the front end comes before free roam), and written into VOIP_MUTE's as the game uploads that.
+namespace {
+constexpr uint32_t CRIB_SAVE_CRC=0xe67ab8c3u,CRIB_SAVE_ADLER=0xa6278273u,VOIP_MUTE_CRC=0xdaa6fa6du,VOIP_MUTE_ADLER=0xb85b6f66u;
+constexpr unsigned ICON_LEVELS=8;
+uint32_t iconSource=0,iconTarget=0,iconGot=0;std::vector<uint8_t> iconLevel[ICON_LEVELS];
+uint32_t crc32Of(const uint8_t* p,size_t n){
+    static uint32_t table[256];static bool made=false;
+    if(!made){for(uint32_t i=0;i<256;++i){uint32_t c=i;for(int k=0;k<8;++k)c=c&1?0xedb88320u^(c>>1):c>>1;table[i]=c;}made=true;}
+    uint32_t c=0xffffffffu;for(size_t i=0;i<n;++i)c=table[(c^p[i])&0xff]^(c>>8);return c^0xffffffffu;
+}
+uint32_t adler32Of(const uint8_t* p,size_t n){uint32_t a=1,b=0;for(size_t i=0;i<n;++i){a=(a+p[i])%65521u;b=(b+a)%65521u;}return (b<<16)|a;}
+// a 128 x 64 DXT3 level's rows of blocks and their bytes
+unsigned iconRows(unsigned level){return std::max(1u,((64u>>level)+3u)/4u);}
+unsigned iconRowBytes(unsigned level){return std::max(1u,((128u>>level)+3u)/4u)*16u;}
+void saveIconUpload(uint32_t texture,uint32_t level,uint8_t* data,uint32_t pitch,uint32_t rowBytes,uint32_t rows){
+    if(level>=ICON_LEVELS||rowBytes!=iconRowBytes(level)||rows!=iconRows(level))return;
+    std::vector<uint8_t> bytes(size_t(rowBytes)*rows);
+    for(uint32_t r=0;r<rows;++r)std::memcpy(bytes.data()+size_t(r)*rowBytes,data+size_t(r)*pitch,rowBytes);
+    if(level==0){
+        uint32_t crc=crc32Of(bytes.data(),bytes.size()),adler=adler32Of(bytes.data(),bytes.size());
+        if(crc==CRIB_SAVE_CRC&&adler==CRIB_SAVE_ADLER&&iconGot!=0xffu){iconSource=texture;iconGot=0;}
+        else if(crc==VOIP_MUTE_CRC&&adler==VOIP_MUTE_ADLER){iconTarget=texture;}
+        else if(texture==iconTarget)iconTarget=0;            // the game put something else there: its own again
+        else if(texture==iconSource&&iconGot!=0xffu)iconSource=0;
+    }
+    if(texture==iconSource&&iconGot!=0xffu){
+        iconLevel[level]=bytes;iconGot|=1u<<level;
+        if(iconGot==0xffu)NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Save icon: the crib's Save icon kept");
+    }
+    if(texture==iconTarget&&iconLevel[level].size()==bytes.size()){
+        for(uint32_t r=0;r<rows;++r)std::memcpy(data+size_t(r)*pitch,iconLevel[level].data()+size_t(r)*rowBytes,rowBytes);
+        if(level==0)NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Save icon: the pause menu's Save shows the crib's Save icon");
+    }
+}
+}
 #include "d3d9_locks.inc"
 bool compressedFormat(D3DFORMAT format){return format>=D3DFMT_DXT1&&format<=D3DFMT_DXT5;}
 D3DFORMAT nativeTextureFormat(IDirect3DDevice9* device,D3DFORMAT format,DWORD usage,D3DRESOURCETYPE type){
