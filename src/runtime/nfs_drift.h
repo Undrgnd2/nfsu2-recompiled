@@ -67,6 +67,8 @@ void nfs_showoff_take(const uint32_t keep[6]);                  /* ... and after
 void nfs_showoff_ov_banks(void);            /* wraps 0x438140 */
 /* The distance under the GPS arrow (gpsdistance.c). */
 void nfs_gps_ov_hud(void);                  /* wraps 0x4EC5A0 */
+/* The Bank and the top-left box only when they say something (hudbank.c). */
+void nfs_hudbank_ov_bits(void);             /* wraps 0x600090 */
 #ifdef __cplusplus
 }
 #endif

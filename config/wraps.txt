@@ -26,3 +26,4 @@
 0x00490920  headlights: a light's flare, ours brighter on high beam (lights.c)
 0x00438140  exhibition: the game throws the animation banks away, ours unloaded first, the walk made safe (showoff.c)
 0x004EC5A0  GPS distance: the HUD's update, the distance under the GPS arrow after it (gpsdistance.c)
+0x00600090  HUD: the HUD part bits, the Bank and the top-left box hidden when they have nothing to say (hudbank.c)

@@ -75,6 +75,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x00438140u, nfs_showoff_ov_banks },
     /* the distance under the GPS arrow, src/runtime/gpsdistance.c */
     { 0x004EC5A0u, nfs_gps_ov_hud },
+    /* the Bank and the top-left box only when they say something, src/runtime/hudbank.c */
+    { 0x00600090u, nfs_hudbank_ov_bits },
 #endif
 };
 
