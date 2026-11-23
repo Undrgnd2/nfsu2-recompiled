@@ -527,6 +527,7 @@ final class RacingControlsView extends View {
         drawDrift(canvas);
         drawGhost(canvas);
         drawShowoff(canvas);
+        drawPerf(canvas);
         if(editing) {
             float w=getWidth()/scale;
             float tb=toolbarTop();
@@ -821,6 +822,24 @@ final class RacingControlsView extends View {
         if(hyd!=0)press(hyd==1?KEY_LIFT:KEY_BOUNCE);
         invalidate();
     }
+    // ---- the FPS / battery counter (GameActivity.updatePerf, once a second while shown) ----
+    private String perfText="";
+    boolean perfShown() {return layouts.getBoolean("perf",false);}
+    void setPerf(float fps,float cpu,float bat,int pct,boolean charging) {
+        StringBuilder s=new StringBuilder(String.format(java.util.Locale.FRANCE,"%.0f FPS",fps));
+        if(!Float.isNaN(cpu))s.append(String.format(java.util.Locale.FRANCE,"  ·  CPU %.0f°C",cpu));
+        if(pct>=0)s.append("  ·  ").append(charging?"⚡":"").append(pct).append(" %");
+        if(!Float.isNaN(bat))s.append(String.format(java.util.Locale.FRANCE,"  ·  batterie %.0f°C",bat));
+        perfText=s.toString();invalidate();
+    }
+    private void drawPerf(Canvas canvas) {
+        if(!perfShown()||perfText.isEmpty()||editing)return;
+        float w=getWidth()/scale;
+        // top right, under the top row's buttons and below the ghost note (bottomOfDrift): clear of the menus' keyboard
+        text.setTextSize(12);float tw=text.measureText(perfText)/2+10,cx=w-12-tw,y=bottomOfDrift()+66;
+        fill.setColor(0x99000000);canvas.drawRoundRect(cx-tw,y-10,cx+tw,y+10,8,8,fill);
+        glyph(canvas,perfText,cx,y,12,false,0xFFFFFFFF);
+    }
     private boolean engageOn() {return ghost.length>6&&ghost[6]!=0;}
     private int showoffSeen=-1; private long showoffUntil; private String showoffText="";
     private void drawShowoff(Canvas canvas) {
@@ -933,6 +952,7 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Compteur FPS / batterie",perfShown()?"Affiché":"Masqué",0,()->{layouts.edit().putBoolean("perf",!perfShown()).apply();if(!perfShown())perfText="";invalidate();});
         menuRow(rows,"Limite de FPS",null,0,configureFrameLimit);
         menuRow(rows,"Quitter le jeu",null,0xFFFF7A6E,()->{if(ctx instanceof android.app.Activity)((android.app.Activity)ctx).finish();});
         android.widget.TextView foot=menuText("undrgnd2.eu · le menu du jeu reste sur Pause",13,0x99FFFFFF,false);

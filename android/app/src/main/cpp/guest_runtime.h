@@ -16,6 +16,7 @@ std::string takeGuestNotice();
 // (triggers), Rx, Ry, Rz in -1..1; buttons A B X Y LB RB Back Start LS RS as bits.
 void setGuestPad(const float axes[6],uint32_t buttons,int hatX,int hatY);
 void setGuestPadConnected(bool connected);
+uint32_t guestPresentCount();   // frames shown so far (the FPS counter)
 void setGuestTouchStatus(bool down);   // the touch Career status button: the pad's D-pad down
 // True while the game has the joystick acquired (then the pad stops emulating keys).
 bool guestGamepadInUse();

@@ -47,6 +47,45 @@ public final class GameActivity extends NativeActivity {
     private static native int[] nativePhotoTake();
     private static native void nativePhotoLook(boolean live, float[] values);
     private static native void nativeTone(float exposure, float white);
+    private static native int nativeFrameCount();
+    // ---- the FPS / battery counter (the touch controls' menu shows it): frames shown each second, the CPU's hottest
+    //      thermal zone where Android lets the app read it, the battery's charge and temperature ----
+    private long perfAt; private int perfFrames;
+    private java.io.File[] cpuZones;
+    private void updatePerf() {
+        if(touchControls==null||!touchControls.perfShown())return;
+        long now=android.os.SystemClock.uptimeMillis();int frames=nativeFrameCount();
+        if(perfAt==0){perfAt=now;perfFrames=frames;return;}
+        if(now-perfAt<1000)return;
+        float fps=(frames-perfFrames)*1000f/(now-perfAt);perfAt=now;perfFrames=frames;
+        android.content.Intent bat=registerReceiver(null,new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+        int level=bat==null?-1:bat.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL,-1),scale=bat==null?100:bat.getIntExtra(android.os.BatteryManager.EXTRA_SCALE,100);
+        int pct=level<0||scale<=0?-1:level*100/scale;
+        float batTemp=bat==null?Float.NaN:bat.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE,Integer.MIN_VALUE)/10f;
+        boolean charging=bat!=null&&bat.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED,0)!=0;
+        touchControls.setPerf(fps,cpuTemp(),batTemp,pct,charging);
+    }
+    private float cpuTemp() {
+        if(cpuZones==null){
+            java.util.ArrayList<java.io.File> zones=new java.util.ArrayList<>();
+            java.io.File[] all=new java.io.File("/sys/class/thermal").listFiles();
+            if(all!=null)for(java.io.File z:all){
+                if(!z.getName().startsWith("thermal_zone"))continue;
+                String type=readLine(new java.io.File(z,"type"));
+                if(type!=null&&(type.toLowerCase().contains("cpu")||type.toLowerCase().startsWith("cpuss"))&&readLine(new java.io.File(z,"temp"))!=null)zones.add(new java.io.File(z,"temp"));
+            }
+            cpuZones=zones.toArray(new java.io.File[0]);
+        }
+        float best=Float.NaN;
+        for(java.io.File f:cpuZones){
+            String v=readLine(f);if(v==null)continue;
+            try{float t=Float.parseFloat(v.trim());if(t>1000)t/=1000f;if(t>0&&t<150&&!(t<=best))best=t;}catch(NumberFormatException ignored){}
+        }
+        return best;
+    }
+    private static String readLine(java.io.File f) {
+        try(java.io.BufferedReader r=new java.io.BufferedReader(new java.io.FileReader(f))){return r.readLine();}catch(Exception e){return null;}
+    }
     private final boolean[] touchKeys=new boolean[256],sentKeys=new boolean[256];
     private boolean tiltLeft,tiltRight,tiltEnabled,tiltCalibrate=true;
     private float tiltFiltered,tiltNeutral,tiltSensitivity=1;
@@ -147,6 +186,7 @@ public final class GameActivity extends NativeActivity {
             touchControls.setDrift(nativeDriftStatus());
             touchControls.setGhost(nativeGhostStatus());
             touchControls.setPhotoStatus(nativePhotoStatus());
+            updatePerf();
             if("server.dll".equals(nativeTakeNotice()))showNotice("Course LAN","Ton server.dll n'est pas la version utilisée pour préparer cette appli : ce téléphone ne peut donc pas créer de course LAN. Tu peux quand même rejoindre une course créée par un autre joueur. Pour en créer une, copie dans le dossier nfsu2 le server.dll de l'installation PC d'où vient l'exécutable du jeu.");
             touchControls.postDelayed(this,250);
         }
