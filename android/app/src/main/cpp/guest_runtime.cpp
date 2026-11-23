@@ -194,7 +194,6 @@ struct WaitScope {
 std::atomic<int64_t> lastPresentMs{0};
 // Frames shown (each Present): the touch controls' FPS counter (GameActivity, nativeFrameCount).
 std::atomic<uint32_t> presentCount{0};
-uint32_t guestPresentCount(){return presentCount.load();}
 int64_t steadyMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 void startStallWatch(){
     static std::once_flag started;
@@ -999,6 +998,8 @@ void setGuestPadConnected(bool connected){
     // The game keeps its pad (guest_input.inc inputPadConnected): without a real one it stands still.
     physical=connected;if(!connected)inputPad=InputPad{};
 }
+// (beside setGuestTouchStatus, out of the anonymous namespace: main.cpp's nativeFrameCount calls it)
+uint32_t guestPresentCount(){return presentCount.load();}
 void setGuestTouchStatus(bool down){
     static std::atomic<int64_t> since{0};
     int64_t now=touchClockMs();
