@@ -67,7 +67,6 @@ static float rdf_(uint32_t va) { uint32_t v = MEM32(va); float f; memcpy(&f, &v,
 static void wrf(uint32_t va, float f) { uint32_t v; memcpy(&v, &f, 4); MEM32(va) = v; }
 
 enum { W_UNKNOWN, W_OPEN, W_PAST };   /* reach[]: not on the start's network, the career's roads, past its walls */
-static const char *const STATE[] = { "off the network", "on the career's roads", "past the career's walls" };
 
 static struct {
     int built, ok, n, nseg, nbar, nreach, npast;
