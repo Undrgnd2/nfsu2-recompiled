@@ -60,6 +60,13 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     /* the pause menu's Save, src/runtime/savegame.c */
     { 0x0050DAB0u, nfs_save_ov_add_item },
     { 0x004C26B0u, nfs_save_ov_accept },
+    /* the drift camera in every drive, src/runtime/cameras.c */
+    { 0x00502540u, nfs_cam_ov_scroll },
+    { 0x004FE9F0u, nfs_cam_ov_settings },
+    { 0x00525ED0u, nfs_cam_ov_humans },
+    { 0x00526970u, nfs_cam_ov_dyno },
+    { 0x00540780u, nfs_cam_ov_roam },
+    { 0x00581820u, nfs_cam_ov_load },
 #endif
 };
 

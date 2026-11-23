@@ -267,6 +267,8 @@ static void publish(void) {
 }
 
 void nfs_drift_press(void) { atomic_fetch_add(&s_presses, 1); }
+/* the view drift mode's drift camera is in (cameras.c: not the player's own), 0 none */
+uint32_t nfs_drift_camera_view(void) { return D.cam ? view_addr() : 0; }
 void nfs_drift_status(int out[7]) { for (int i = 0; i < 7; i++) out[i] = atomic_load(&s_status[i]); }
 
 /* each frame, on the guest thread (after Present) */

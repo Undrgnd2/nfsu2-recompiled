@@ -39,6 +39,15 @@ void nfs_photo_ov_car_flares(void);
 void nfs_save_frame(void);                  /* guest thread, after each Present */
 void nfs_save_ov_add_item(void);            /* wraps 0x50DAB0, 0x4C26B0 */
 void nfs_save_ov_accept(void);
+/* The drift camera in every drive (cameras.c). */
+uint32_t nfs_drift_camera_view(void);       /* drift.c: the view its drift camera is in, 0 none */
+void nfs_cam_frame(void);                   /* guest thread, after each Present */
+void nfs_cam_ov_scroll(void);               /* replaces 0x502540; wraps 0x4FE9F0, 0x525ED0, 0x526970, 0x540780, 0x581820 */
+void nfs_cam_ov_settings(void);
+void nfs_cam_ov_humans(void);
+void nfs_cam_ov_dyno(void);
+void nfs_cam_ov_roam(void);
+void nfs_cam_ov_load(void);
 #ifdef __cplusplus
 }
 #endif
