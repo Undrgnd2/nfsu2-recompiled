@@ -48,3 +48,4 @@
 0x0052D330  garage: the help bar label: Trade Car (garage.c)
 0x004DFC50  garage: the garage car select messages: Trade Car (garage.c)
 0x005654D0  tuning graphs: a drag moves the ECU and turbo graph dots (tunegraph.c)
+0x005647E0  dyno: Save Profile and Quit Tuning put the setups into the car first (dyno.c)

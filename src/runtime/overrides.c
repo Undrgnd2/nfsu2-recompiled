@@ -100,6 +100,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x004DFC50u, nfs_garage_ov_select },
     /* the tuning graphs take a drag, src/runtime/tunegraph.c */
     { 0x005654D0u, nfs_tune_ov_msg },
+    /* the dyno keeps its setups, src/runtime/dyno.c */
+    { 0x005647E0u, nfs_dyno_ov_msg },
 #endif
 };
 

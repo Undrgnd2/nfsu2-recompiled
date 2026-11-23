@@ -92,6 +92,7 @@ void nfs_garage_ov_helplabel(void);
 void nfs_garage_ov_select(void);
 void nfs_garage_swap_in(void);              /* cameras.c race setup wraps: the car driven from slots 6-10 ... */
 void nfs_garage_swap_out(void);
+void nfs_dyno_ov_msg(void);                 /* dyno.c: wraps 0x5647E0 */
 void nfs_tune_ov_msg(void);                 /* tunegraph.c: wraps 0x5654D0 */
 void nfs_sponsors_frame(void);              /* sponsors.c: Continue on the sponsor screens (once) */
 void nfs_garage_hook_shop(void);            /* hook 0x547689 */
