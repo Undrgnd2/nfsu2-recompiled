@@ -139,8 +139,9 @@ final class RacingControlsView extends View {
             // undrgnd2.eu's Pressurize and Bounce: only with a car that has hydraulics (ghost.c hydraulics)
             add(L+448,T,48,"status",0xF3); // Statut de carrière: the pad's D-pad down (guest_input.inc)
             add(L+504,T,48,"photo",PH_TOGGLE);   // Mode photo (photo.c)
-            add(L+560,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
-            add(L+616,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+560,T,48,"lights",0xF4);   // Phares: touché éteints / allumés, maintenu pleins phares (lights.c)
+            add(L+616,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+672,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
             add(w-R-48,T,48,stick?"stick":"buttons",STEERMODE);
             add(w-R-104,T,48,"menu",MODE);
             if(stick) add(L,h-B-120,120,120,WHEEL,"stick",STICK,0);
@@ -503,7 +504,7 @@ final class RacingControlsView extends View {
     /** undrgnd2.eu's look: see-through black, white words, lime when pressed or lit. */
     private void drawUndrgnd(Canvas canvas,Control c) {
         boolean on=c.held>0, picked=editing&&c==selected;
-        boolean lit=(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
+        boolean lit=(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
         boolean small=c.scan<0||c.shape==ROUND&&c.group==0&&c.area.top<40;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int bg=on?0xB8000000:racing&&c.scan>=0?0x33000000:0x66000000;
@@ -539,6 +540,15 @@ final class RacingControlsView extends View {
             return;
         }
         line.setColor(ink);fill.setColor(ink);line.setStrokeWidth(Math.max(2f,(small?24:32)*.09f));
+        if(c.icon.equals("lights")) {   // a headlight: its lens and beams; struck through while the lights are off
+            float s=r*.42f;
+            path.reset();path.moveTo(cx-s*.15f,cy-s*.7f);path.cubicTo(cx-s*1.05f,cy-s*.7f,cx-s*1.05f,cy+s*.7f,cx-s*.15f,cy+s*.7f);path.close();
+            canvas.drawPath(path,line);
+            boolean high=ghost.length>4&&ghost[4]==2;
+            for(int i=-1;i<=1;++i){float y=cy+i*s*.45f;canvas.drawLine(cx+s*.15f,y,cx+s*.95f,high?y-s*.25f:y+s*.2f,line);}
+            if(ghost.length>4&&ghost[4]==1)canvas.drawLine(cx-s*.95f,cy+s*.95f,cx+s*.95f,cy-s*.95f,line);
+            return;
+        }
         if(c.icon.equals("photo")) {   // a still camera: body, lens, flash
             float s=r*.42f;
             canvas.drawRoundRect(cx-s,cy-s*.55f,cx+s,cy+s*.7f,s*.2f,s*.2f,line);
@@ -714,6 +724,8 @@ final class RacingControlsView extends View {
     private int[] ghost=new int[3];
     void setGhost(int[] status) {
         if(status==null||status.length<3||java.util.Arrays.equals(status,ghost))return;
+        boolean lightsChanged=status.length>4&&(ghost.length<5||ghost[4]!=status[4]);
+        if(lightsChanged&&racing)invalidate();
         ghost=status;
         int state=status.length>3?status[3]:0;
         if(state!=hydState) {

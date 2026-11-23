@@ -48,6 +48,14 @@ void nfs_cam_ov_humans(void);
 void nfs_cam_ov_dyno(void);
 void nfs_cam_ov_roam(void);
 void nfs_cam_ov_load(void);
+/* The headlights on a touch button (lights.c): tap off or on, hold high beam. */
+void nfs_lights_key(int down);              /* the LIGHTS button (any thread) */
+int nfs_lights_state(void);                 /* 0 as the game has them, 1 off, 2 high beam */
+void nfs_lights_frame(void);                /* guest thread, after each Present */
+void nfs_lights_flares(uint32_t ri);        /* photo.c's flares wrap: the car whose flares are drawn now */
+void nfs_lights_ov_step(void);              /* wraps 0x5F6190, 0x60F510, 0x490920 */
+void nfs_lights_ov_colour(void);
+void nfs_lights_ov_flare(void);
 #ifdef __cplusplus
 }
 #endif

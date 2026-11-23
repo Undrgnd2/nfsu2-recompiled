@@ -67,6 +67,10 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x00526970u, nfs_cam_ov_dyno },
     { 0x00540780u, nfs_cam_ov_roam },
     { 0x00581820u, nfs_cam_ov_load },
+    /* the headlights on a touch button, src/runtime/lights.c */
+    { 0x005F6190u, nfs_lights_ov_step },
+    { 0x0060F510u, nfs_lights_ov_colour },
+    { 0x00490920u, nfs_lights_ov_flare },
 #endif
 };
 

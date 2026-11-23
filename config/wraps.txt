@@ -21,3 +21,6 @@
 0x00526970  drift camera: the dyno's test run setup, seen (cameras.c)
 0x00540780  drift camera: free roam's setup, seen (cameras.c)
 0x00581820  drift camera: a load's race setup, seen (cameras.c)
+0x005F6190  headlights: the car's step, our headlights' byte 0 while off (lights.c)
+0x0060F510  headlights: the car's headlight colour, black for ours while off (lights.c)
+0x00490920  headlights: a light's flare, ours brighter on high beam (lights.c)

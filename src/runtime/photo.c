@@ -455,5 +455,10 @@ static int photo_hides(uint32_t ri) {
 void nfs_photo_ov_car(void)        { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } sub_00620AE0_orig(); }
 void nfs_photo_ov_car_parts(void)  { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } sub_006162E0_orig(); }
 void nfs_photo_ov_car_lights(void) { if (photo_hides(g_ecx)) { g_esp += 4 + 0x0c; return; } sub_00615A10_orig(); }
-void nfs_photo_ov_car_flares(void) { if (photo_hides(g_ecx)) { g_esp += 4 + 0x18; return; } sub_00615630_orig(); }
+void nfs_photo_ov_car_flares(void) {
+    if (photo_hides(g_ecx)) { g_esp += 4 + 0x18; return; }
+    nfs_lights_flares(g_ecx);                    /* lights.c: high beam's flares */
+    sub_00615630_orig();
+    nfs_lights_flares(0);
+}
 #endif
