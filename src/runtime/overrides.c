@@ -50,6 +50,9 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     /* ghost mode in free roam, src/runtime/ghost.c */
     { 0x005B2610u, nfs_ghost_ov_contact },
     { 0x0044AC10u, nfs_ghost_ov_camera_cars },
+    /* photo mode, src/runtime/photo.c */
+    { 0x005378C0u, nfs_photo_ov_frontend },
+    { 0x005C7EC0u, nfs_photo_ov_view },
 #endif
 };
 

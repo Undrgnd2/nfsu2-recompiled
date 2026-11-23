@@ -21,6 +21,14 @@ void nfs_ghost_status(int out[4]);          /* flags (1 chosen, 2 active now, 4 
                                                hydraulics (0 none, 1 not startable now, 2 startable) */
 void nfs_ghost_ov_contact(void);            /* wraps 0x5B2610, 0x44AC10 */
 void nfs_ghost_ov_camera_cars(void);
+/* Photo mode (photo.c): the world stands, the HUD goes, the camera comes loose from the car. */
+enum { PHOTO_OPEN = 1, PHOTO_MOVE, PHOTO_LIFT, PHOTO_DRAG, PHOTO_ZOOM, PHOTO_ROLL, PHOTO_MODE, PHOTO_RESET };
+void nfs_photo_frame(void);                 /* guest thread, after each Present */
+void nfs_photo_input(int cmd, int a, int b);/* the touch controls (any thread) */
+void nfs_photo_status(int out[4]);          /* flags (1 it can open or is on, 2 on, 4 the free camera), field of view
+                                               and tilt (1/10 degree), times opened */
+void nfs_photo_ov_frontend(void);           /* wraps 0x5378C0, 0x5C7EC0 */
+void nfs_photo_ov_view(void);
 #ifdef __cplusplus
 }
 #endif

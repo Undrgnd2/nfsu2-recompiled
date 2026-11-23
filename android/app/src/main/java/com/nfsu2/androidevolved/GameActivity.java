@@ -41,6 +41,8 @@ public final class GameActivity extends NativeActivity {
     private static native String nativeTakeNotice();
     private static native int[] nativeDriftStatus();
     private static native int[] nativeGhostStatus();
+    private static native void nativePhoto(int cmd, int a, int b);
+    private static native int[] nativePhotoStatus();
     private final boolean[] touchKeys=new boolean[256],sentKeys=new boolean[256];
     private boolean tiltLeft,tiltRight,tiltEnabled,tiltCalibrate=true;
     private float tiltFiltered,tiltNeutral,tiltSensitivity=1;
@@ -140,6 +142,7 @@ public final class GameActivity extends NativeActivity {
             if(nativeGamepadUsed())touchControls.gamepadUsed();
             touchControls.setDrift(nativeDriftStatus());
             touchControls.setGhost(nativeGhostStatus());
+            touchControls.setPhotoStatus(nativePhotoStatus());
             if("server.dll".equals(nativeTakeNotice()))showNotice("Course LAN","Ton server.dll n'est pas la version utilisée pour préparer cette appli : ce téléphone ne peut donc pas créer de course LAN. Tu peux quand même rejoindre une course créée par un autre joueur. Pour en créer une, copie dans le dossier nfsu2 le server.dll de l'installation PC d'où vient l'exécutable du jeu.");
             touchControls.postDelayed(this,250);
         }
@@ -250,6 +253,10 @@ public final class GameActivity extends NativeActivity {
         statusWindow.setTouchable(false);
         touchControls = new RacingControlsView(this, this::setTouchKey, this::showTextInput,this::showTiltOptions,this::showFrameLimitOptions);
         touchControls.setPointer(GameActivity::nativePointer);
+        touchControls.setPhotoHooks(new RacingControlsView.Photo() {
+            @Override public void input(int cmd, int a, int b) {nativePhoto(cmd, a, b);}
+            @Override public void shot() {takePhoto();}
+        });
         controlsWindow = new PopupWindow(touchControls, ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, false);
         controlsWindow.setClippingEnabled(false);
@@ -347,6 +354,48 @@ public final class GameActivity extends NativeActivity {
         super.onRequestPermissionsResult(code, permissions, results);
         // NativeActivity may stay resumed when a runtime permission dialog closes.
         if (code == 1 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) recreate();
+    }
+    /** Photo mode's picture: the game's window (the touch controls are a window of their own, so not in it) as a
+     *  PNG in the gallery, Pictures/UNDRGND2. */
+    private void takePhoto() {
+        if (Build.VERSION.SDK_INT < 26) {Toast.makeText(this, "Photo impossible sur cette version d'Android", Toast.LENGTH_SHORT).show();return;}
+        android.view.View decor = getWindow().getDecorView();
+        int w = decor.getWidth(), h = decor.getHeight();
+        if (w <= 0 || h <= 0) return;
+        android.graphics.Bitmap picture = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+        android.view.PixelCopy.request(getWindow(), picture, result -> {
+            if (result != android.view.PixelCopy.SUCCESS) {
+                Toast.makeText(this, "Photo impossible (code " + result + ")", Toast.LENGTH_SHORT).show();return;}
+            new Thread(() -> {
+                String saved = savePhoto(picture);
+                runOnUiThread(() -> Toast.makeText(this, saved != null ? "Photo enregistrée : " + saved : "Impossible d'enregistrer la photo", Toast.LENGTH_SHORT).show());
+            }, "photo-save").start();
+        }, new android.os.Handler(android.os.Looper.getMainLooper()));
+    }
+    private String savePhoto(android.graphics.Bitmap picture) {
+        String name = "UNDRGND2_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(new java.util.Date()) + ".png";
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues values = new android.content.ContentValues();
+                values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+                values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+                values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/UNDRGND2");
+                Uri uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return null;
+                try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    if (out == null || !picture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)) return null;
+                }
+                return "Galerie › UNDRGND2";
+            }
+            java.io.File dir = new java.io.File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "UNDRGND2");
+            if (!dir.isDirectory() && !dir.mkdirs()) return null;
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(dir, name))) {
+                if (!picture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)) return null;
+            }
+            return dir.getPath();
+        } catch (java.io.IOException | RuntimeException error) {
+            android.util.Log.w("NFS", "Photo not saved", error);return null;
+        } finally {picture.recycle();}
     }
     @Override protected void onDestroy() {
         super.onDestroy();

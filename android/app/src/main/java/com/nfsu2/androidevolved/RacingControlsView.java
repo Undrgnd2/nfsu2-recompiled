@@ -30,6 +30,16 @@ final class RacingControlsView extends View {
     private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8;
     /** The hydraulics' keys (the game's Pressurize and Bounce: H and J), held while their button is on. */
     private static final int KEY_LIFT = 0x23, KEY_BOUNCE = 0x24;
+    /** Photo mode (photo.c): its button, and its own controls while it is on. */
+    private static final int PH_TOGGLE = -9, PH_EXIT = -10, PH_CAM = -11, PH_RESET = -12, PH_STICK = -13, PH_UP = -14,
+            PH_DOWN = -15, PH_SHOT = -16, PH_RL = -17, PH_RR = -18;
+    /** nfs_drift.h PHOTO_* */
+    private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
+            PHOTO_MODE = 7, PHOTO_RESET = 8;
+    interface Photo { void input(int cmd, int a, int b); void shot(); }
+    private Photo photo;
+    private int[] photoState = new int[4];
+    private boolean photoOn;
     private static final int ROUND = 0, PEDAL = 1, WHEEL = 2, RECT = 3, PILL = 4, KEY = 5;
     /** undrgnd2.eu's blue, for a pressed or lit control and the menu. */
     private static final int LIME = 0xFF3FC1F5;
@@ -73,7 +83,7 @@ final class RacingControlsView extends View {
         /** away for now (Pressurize and Bounce without hydraulics): not drawn, no finger takes it */
         boolean hidden;
         int held;
-        float steering;
+        float steering, steerY;
         Control(float x, float y, float w, float h, int shape, String icon, int scan, int color) {
             area = new RectF(x, y, x+w, y+h); original=new RectF(area); this.shape=shape; this.icon=icon; this.scan=scan; this.color=color;
         }
@@ -127,8 +137,9 @@ final class RacingControlsView extends View {
             add(L+392,T,48,"ghost",0xF2);   // ghost.c
             // undrgnd2.eu's Pressurize and Bounce: only with a car that has hydraulics (ghost.c hydraulics)
             add(L+448,T,48,"status",0xF3); // Statut de carrière: the pad's D-pad down (guest_input.inc)
-            add(L+504,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
-            add(L+560,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+504,T,48,"photo",PH_TOGGLE);   // Mode photo (photo.c)
+            add(L+560,T,48,"lift",HYD_LIFT);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
+            add(L+616,T,48,"bounce",HYD_BOUNCE);controls.get(controls.size()-1).hidden=hydState==0&&hyd==0;
             add(w-R-48,T,48,stick?"stick":"buttons",STEERMODE);
             add(w-R-104,T,48,"menu",MODE);
             if(stick) add(L,h-B-120,120,120,WHEEL,"stick",STICK,0);
@@ -157,6 +168,98 @@ final class RacingControlsView extends View {
             addU(w-R-136,h-B-k,136,k,PILL,"t:OK",0x1c,-1,0);
             add(w/2-23,h-B-46,46,"keyboard",TEXT);
         }
+    }
+    /** Photo mode's controls: leave, orbit or free camera, reset; the stick moves the camera, ▲ ▼ lift it, ↺ ↻ tilt
+     *  it; PHOTO takes the picture.  A finger elsewhere turns the camera, two pinch the zoom. */
+    private void layoutPhoto(float w, float h) {
+        final float L=12,T=12,B=12,R=12;
+        add(L,T,48,"back",PH_EXIT);
+        addU(w-R-170,T,170,48,PILL,(photoState[0]&4)!=0?"t:Caméra libre":"t:Caméra orbite",PH_CAM,-1,0);
+        addU(w-R-170-8-120,T,120,48,PILL,"t:Réinitialiser",PH_RESET,-1,0);
+        add(L,h-B-140,140,140,WHEEL,"stick",PH_STICK,0);
+        addU(L+152,h-B-140,60,66,KEY,"up",PH_UP,-1,0);
+        addU(L+152,h-B-66,60,66,KEY,"down",PH_DOWN,-1,0);
+        add(w-R-104,h-B-104,104,"t:PHOTO",PH_SHOT);
+        add(w-R-104-70,h-B-58,56,"t:↻",PH_RR);
+        add(w-R-104-70,h-B-58-66,56,"t:↺",PH_RL);
+    }
+    void setPhotoHooks(Photo hooks) {photo=hooks;}
+    void setPhotoStatus(int[] status) {
+        if(status==null||status.length<4)return;
+        boolean on=(status[0]&2)!=0,free=(status[0]&4)!=(photoState[0]&4);
+        photoState=status;
+        if(on!=photoOn||on&&free) {photoOn=on;photoRelease();releaseAll();if(!editing)layoutControls();}
+        else if(photoOn)invalidate();
+    }
+    private void photoInput(int cmd,int a,int b) {if(photo!=null)photo.input(cmd,a,b);}
+    // ---- photo mode's touches: its controls, and a finger elsewhere turning, two pinching ----
+    private final HashMap<Integer,Control> photoFingers=new HashMap<>();
+    private final HashMap<Integer,float[]> freeFingers=new HashMap<>();
+    private float pinchLast=-1;
+    private void photoStick(Control c,float x,float y) {
+        c.steering=Math.max(-1,Math.min(1,(x/scale-c.area.centerX())/(c.area.width()/2)));
+        c.steerY=Math.max(-1,Math.min(1,(y/scale-c.area.centerY())/(c.area.height()/2)));
+        photoInput(PHOTO_MOVE,Math.round(c.steering*1000),Math.round(-c.steerY*1000));
+    }
+    private void photoPress(Control c,float x,float y) {
+        c.held=1;
+        if(c.scan==PH_UP)photoInput(PHOTO_LIFT,1000,0);
+        else if(c.scan==PH_DOWN)photoInput(PHOTO_LIFT,-1000,0);
+        else if(c.scan==PH_RL)photoInput(PHOTO_ROLL,-1,0);
+        else if(c.scan==PH_RR)photoInput(PHOTO_ROLL,1,0);
+        else if(c.scan==PH_STICK)photoStick(c,x,y);
+        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+    private void photoLift(Control c,boolean tap) {
+        c.held=0;
+        if(c.scan==PH_UP||c.scan==PH_DOWN)photoInput(PHOTO_LIFT,0,0);
+        else if(c.scan==PH_RL||c.scan==PH_RR)photoInput(PHOTO_ROLL,0,0);
+        else if(c.scan==PH_STICK){c.steering=0;c.steerY=0;photoInput(PHOTO_MOVE,0,0);}
+        if(!tap)return;
+        if(c.scan==PH_EXIT)photoInput(PHOTO_OPEN,2,0);
+        else if(c.scan==PH_CAM)photoInput(PHOTO_MODE,0,0);
+        else if(c.scan==PH_RESET)photoInput(PHOTO_RESET,0,0);
+        else if(c.scan==PH_SHOT&&photo!=null)photo.shot();
+    }
+    private void photoRelease() {
+        for(Control c:photoFingers.values())photoLift(c,false);
+        photoFingers.clear();freeFingers.clear();pinchLast=-1;
+        photoInput(PHOTO_MOVE,0,0);photoInput(PHOTO_LIFT,0,0);photoInput(PHOTO_ROLL,0,0);
+    }
+    private boolean photoTouch(MotionEvent e) {
+        int action=e.getActionMasked(),index=e.getActionIndex(),id=e.getPointerId(index);
+        if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_POINTER_DOWN) {
+            if(action==MotionEvent.ACTION_DOWN)photoRelease();
+            Control c=hit(e.getX(index),e.getY(index));
+            if(c!=null){photoFingers.put(id,c);photoPress(c,e.getX(index),e.getY(index));}
+            else {freeFingers.put(id,new float[]{e.getX(index),e.getY(index)});pinchLast=-1;}
+        } else if(action==MotionEvent.ACTION_MOVE) {
+            float h=Math.max(1,getHeight());
+            if(freeFingers.size()>=2) {
+                Integer[] ids=freeFingers.keySet().toArray(new Integer[0]);
+                int a=e.findPointerIndex(ids[0]),b=e.findPointerIndex(ids[1]);
+                if(a>=0&&b>=0) {
+                    float d=(float)Math.hypot(e.getX(a)-e.getX(b),e.getY(a)-e.getY(b));
+                    if(pinchLast>0&&d>0)photoInput(PHOTO_ZOOM,Math.round((float)Math.log(pinchLast/d)*1000),0);
+                    pinchLast=d;
+                }
+            }
+            for(int i=0;i<e.getPointerCount();++i) {
+                int pid=e.getPointerId(i);float x=e.getX(i),y=e.getY(i);
+                Control c=photoFingers.get(pid);
+                if(c!=null){if(c.scan==PH_STICK)photoStick(c,x,y);continue;}
+                float[] last=freeFingers.get(pid);
+                if(last==null)continue;
+                if(freeFingers.size()==1)photoInput(PHOTO_DRAG,Math.round((x-last[0])/h*10000),Math.round((y-last[1])/h*10000));
+                last[0]=x;last[1]=y;
+            }
+        } else if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_POINTER_UP||action==MotionEvent.ACTION_CANCEL) {
+            Control c=photoFingers.remove(id);
+            if(c!=null)photoLift(c,action!=MotionEvent.ACTION_CANCEL&&c==hit(e.getX(index),e.getY(index)));
+            freeFingers.remove(id);pinchLast=-1;
+            if(action!=MotionEvent.ACTION_POINTER_UP)photoRelease();
+        }
+        invalidate();return true;
     }
     private void clamp(Control c) {
         float w=getWidth()/scale,h=getHeight()/scale;
@@ -187,6 +290,7 @@ final class RacingControlsView extends View {
         if(getWidth()==0)return;
         scale=Math.min(getResources().getDisplayMetrics().density, getWidth()/820f);
         float w=getWidth()/scale, h=getHeight()/scale, bottom=h-20;
+        if(photoOn) {layoutPhoto(w,h);invalidate();return;}
         if(style.equals("undrgnd2")) {layoutUndrgnd(w,h);invalidate();return;}
         add(w-62,16,46,"settings",EDIT);
         add(w-118,16,46,racing?"menu":"wheel",MODE);
@@ -241,6 +345,11 @@ final class RacingControlsView extends View {
         canvas.save(); canvas.scale(scale,scale);
         if(editing)canvas.drawColor(0x55000000);
         for(Control c:controls)if(!c.hidden)drawControl(canvas,c);
+        if(photoOn&&!editing) {
+            label.setTextSize(14);label.setColor(0xE6FFFFFF);
+            canvas.drawText("MODE PHOTO · glisse pour tourner · pince pour zoomer · zoom "+photoState[1]/10+"°"+(photoState[2]!=0?" · inclinaison "+photoState[2]/10+"°":""),
+                    getWidth()/scale/2,78,label);
+        }
         drawDrift(canvas);
         drawGhost(canvas);
         if(editing) {
@@ -268,9 +377,9 @@ final class RacingControlsView extends View {
         if(c.shape==WHEEL) {
             canvas.drawCircle(cx,cy,r,fill);
             line.setStrokeWidth(2);line.setColor(picked?0xFFFFCF69:0x29FFFFFF);canvas.drawCircle(cx,cy,r-1,line);
-            float knob=26,kx=cx+c.steering*(r-knob);
-            fill.setColor(on?0xB8000000:0x33000000);canvas.drawCircle(kx,cy,knob,fill);
-            line.setColor(on?LIME:0x5CFFFFFF);canvas.drawCircle(kx,cy,knob-1,line);
+            float knob=26,kx=cx+c.steering*(r-knob),ky=cy+c.steerY*(r-knob);
+            fill.setColor(on?0xB8000000:0x33000000);canvas.drawCircle(kx,ky,knob,fill);
+            line.setColor(on?LIME:0x5CFFFFFF);canvas.drawCircle(kx,ky,knob-1,line);
             return;
         }
         float corner=c.shape==RECT?16:c.shape==KEY?12:c.shape==PILL?c.area.height()/2:r;
@@ -295,6 +404,14 @@ final class RacingControlsView extends View {
             return;
         }
         line.setColor(ink);fill.setColor(ink);line.setStrokeWidth(Math.max(2f,(small?24:32)*.09f));
+        if(c.icon.equals("photo")) {   // a still camera: body, lens, flash
+            float s=r*.42f;
+            canvas.drawRoundRect(cx-s,cy-s*.55f,cx+s,cy+s*.7f,s*.2f,s*.2f,line);
+            canvas.drawCircle(cx,cy+s*.08f,s*.36f,line);
+            canvas.drawRect(cx-s*.35f,cy-s*.8f,cx+s*.2f,cy-s*.55f,fill);
+            canvas.drawCircle(cx+s*.65f,cy-s*.3f,s*.09f,fill);
+            return;
+        }
         if(c.icon.equals("status")) {   // bars rising, as the pause menu's statistics icon
             float s=r*.42f,base=cy+s*.75f,bw=s*.42f;
             fill.setColor(ink);
@@ -321,7 +438,7 @@ final class RacingControlsView extends View {
         drawIcon(canvas,c,cx,cy,c.shape==RECT||c.shape==KEY?Math.min(r,34):r,on);
     }
     private void drawControl(Canvas canvas,Control c) {
-        if(style.equals("undrgnd2")){drawUndrgnd(canvas,c);return;}
+        if(style.equals("undrgnd2")||photoOn){drawUndrgnd(canvas,c);return;}
         boolean on=c.held>0, picked=editing&&c==selected;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int ink=on?ACCENT:0xE6FFFFFF;
@@ -447,7 +564,7 @@ final class RacingControlsView extends View {
     private boolean driftOn() {return (drift[0]&1)!=0;}
     private void drawDrift(Canvas canvas) {
         boolean note=(drift[0]&4)!=0;
-        if(!racing||editing||(!driftOn()&&!note))return;
+        if(!racing||editing||photoOn||(!driftOn()&&!note))return;
         float w=getWidth()/scale,cx=w/2,y=74;
         String head=note?"Mode drift : uniquement en exploration":(drift[0]&2)!=0?"DRIFT  ×"+drift[1]:"DRIFT  (en pause)";
         String body=note?"":drift[5]>0?"+"+fmt(drift[5]):"Total "+fmt(drift[3])+"   ·   Record "+fmt(drift[4]);
@@ -486,7 +603,7 @@ final class RacingControlsView extends View {
     }
     private void drawGhost(Canvas canvas) {
         boolean note=(ghost[0]&4)!=0;
-        if(!racing||editing||((ghost[0]&1)==0&&!note))return;
+        if(!racing||editing||photoOn||((ghost[0]&1)==0&&!note))return;
         float w=getWidth()/scale,x=w-24,y=bottomOfDrift();
         String head=note?"Mode fantôme : uniquement en exploration":(ghost[0]&8)!=0?"+"+ghost[2]+" % N₂O":"FANTÔME";
         text.setTextSize(15);float tw=text.measureText(head)/2+14,cx=note?w/2:x-tw;
@@ -568,6 +685,7 @@ final class RacingControlsView extends View {
         String styleName=style.equals("undrgnd2")?"undrgnd2.eu":style.equals("classic")?"Classique":style.equals("xbox")?"Xbox":"PlayStation";
         menuRow(rows,"Mode drift",driftOn()?"Activé":"Désactivé",0,()->{tap(0xF1);});
         menuRow(rows,"Mode fantôme",(ghost[0]&1)!=0?"Activé":"Désactivé",0,()->{tap(0xF2);});
+        menuRow(rows,"Mode photo","En exploration ou en course",0,()->{if(photo!=null)photo.input(PHOTO_OPEN,1,0);});
         rows.addView(menuRule());
         menuRow(rows,"Direction",stick?"Joystick":"Boutons ◀ ▶",0,()->{
             layouts.edit().putString("steer",stick?"buttons":"stick").apply();layoutControls();});
@@ -725,6 +843,7 @@ final class RacingControlsView extends View {
     void releaseAll() { for(Control c:fingers.values()) release(c); fingers.clear(); pointerRelease(); invalidate(); }
     @Override public boolean onTouchEvent(MotionEvent e) {
         if(editing)return editTouch(e);
+        if(photoOn)return photoTouch(e);
         int action=e.getActionMasked(),index=e.getActionIndex(),id=e.getPointerId(index);
         if(hiddenByGamepad) {
             if(action==MotionEvent.ACTION_DOWN){hiddenByGamepad=false;invalidate();}
@@ -763,6 +882,7 @@ final class RacingControlsView extends View {
                 if(c.scan==MODE) {racing=!racing;layoutControls();}
                 else if(c.scan==TEXT) {releaseAll();textInput.run();}
                 else if(c.scan==EDIT) {releaseAll();showMenu();}
+                else if(c.scan==PH_TOGGLE) {if(photo!=null)photo.input(PHOTO_OPEN,1,0);}
                 else if(c.scan==HYD_LIFT) setHyd(hyd==1?0:1);
                 else if(c.scan==HYD_BOUNCE) setHyd(hyd==2?0:2);
                 else if(c.scan==STEERMODE) {

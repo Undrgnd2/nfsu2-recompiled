@@ -327,6 +327,11 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     int status[4];nfs_ghost_status(status);
     jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(status));return out;
 }
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhoto(JNIEnv*,jclass,jint cmd,jint a,jint b){nfs_photo_input(cmd,a,b);}
+extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoStatus(JNIEnv* env,jclass){
+    int status[4];nfs_photo_status(status);
+    jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(status));return out;
+}
 extern "C" JNIEXPORT jstring JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTakeNotice(JNIEnv* env,jclass){
     std::string notice=takeGuestNotice();return notice.empty()?nullptr:env->NewStringUTF(notice.c_str());
 }
