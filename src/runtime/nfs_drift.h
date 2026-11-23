@@ -65,6 +65,8 @@ void nfs_showoff_frame(void);               /* guest thread, after each Present 
 int nfs_showoff_put(uint32_t ri, int body, uint32_t keep[6]);   /* photo.c's car drawing wraps, before ... */
 void nfs_showoff_take(const uint32_t keep[6]);                  /* ... and after the drawing */
 void nfs_showoff_ov_banks(void);            /* wraps 0x438140 */
+/* The distance under the GPS arrow (gpsdistance.c). */
+void nfs_gps_ov_hud(void);                  /* wraps 0x4EC5A0 */
 #ifdef __cplusplus
 }
 #endif

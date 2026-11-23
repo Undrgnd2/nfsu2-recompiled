@@ -73,6 +73,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x00490920u, nfs_lights_ov_flare },
     /* the exhibition mode, src/runtime/showoff.c */
     { 0x00438140u, nfs_showoff_ov_banks },
+    /* the distance under the GPS arrow, src/runtime/gpsdistance.c */
+    { 0x004EC5A0u, nfs_gps_ov_hud },
 #endif
 };
 
