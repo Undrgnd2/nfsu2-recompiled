@@ -305,7 +305,8 @@ public final class GameActivity extends NativeActivity {
     }
     // After 3 minutes in the game (time in the foreground), once per launch:
     // the official developer channel.
-    private long creditLeftMs=180000,creditSinceMs;
+    // The original developer is credited in the launcher (its credit line and channel button), not over the game.
+    private long creditLeftMs=0,creditSinceMs;
     private final Runnable creditToast=()->{creditLeftMs=0;Toast.makeText(this,"yt: daniel54bhp",Toast.LENGTH_LONG).show();};
     private final android.os.Handler creditHandler=new android.os.Handler(android.os.Looper.getMainLooper());
     @Override protected void onPause() {
