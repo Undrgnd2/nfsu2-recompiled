@@ -293,6 +293,8 @@ static uint32_t garage_find(uint32_t db, uint32_t h) {
     return xfind(db, h);
 }
 
+int nfs_garage_has_career_car(void) { return garage_find(G_FECARS, MEM32(G_CAREER + K_CAR)) != 0; }
+
 /* --- new careers, stages --- */
 /* (guest calls after the original's: its eax and edx kept, they are scratch registers to the calls) */
 #define KEEP_RET(body) do { uint32_t ka_ = g_eax, kd_ = g_edx; body; g_eax = ka_; g_edx = kd_; } while (0)

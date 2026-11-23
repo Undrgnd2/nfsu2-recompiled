@@ -98,6 +98,7 @@ void nfs_shop_ov_ice_msg(void);
 void nfs_shop_ov_ice_new(void);
 void nfs_dyno_ov_msg(void);                 /* dyno.c: wraps 0x5647E0 */
 void nfs_tune_ov_msg(void);                 /* tunegraph.c: wraps 0x5654D0 */
+void nfs_walls_frame(void);                 /* walls.c: a car past the career's walls back on its roads (each frame) */
 void nfs_engage_frame(void);                /* engage.c: Engage at a marker mended (each frame) */
 void nfs_sponsors_frame(void);              /* sponsors.c: Continue on the sponsor screens (once) */
 void nfs_garage_hook_shop(void);            /* hook 0x547689 */
