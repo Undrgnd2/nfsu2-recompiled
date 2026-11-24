@@ -43,7 +43,7 @@ void sub_00407A30_orig(void);
 #define CAR_SPEED     0x42cu
 #define CAR_GAS       0x438u      /* (0x407A30 copies the throttle here) */
 #define MIN_KMH       20.f
-#define MAX_KMH       300.f
+#define MAX_KMH       400.f
 #define STEP_KMH      5.f
 #define KP            0.06f       /* throttle per km/h under */
 #define KI            0.04f       /* ... per km/h·s */

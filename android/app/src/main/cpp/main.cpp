@@ -333,6 +333,7 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     int status[8];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();status[6]=nfs_engage_status();status[7]=nfs_teleport_status();
     jintArray out=env->NewIntArray(8);if(out)env->SetIntArrayRegion(out,0,8,reinterpret_cast<const jint*>(status));return out;
 }
+extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePower(JNIEnv*,jclass,jint level){return nfs_power(level);}
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeHapticsStatus(JNIEnv* env,jclass){
     int status[4];nfs_haptics_status(status);
     jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(status));return out;

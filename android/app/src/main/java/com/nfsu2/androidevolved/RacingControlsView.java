@@ -537,6 +537,7 @@ final class RacingControlsView extends View {
         drawPerf(canvas);
         drawRadars(canvas);
         drawCruise(canvas);
+        drawPower(canvas);
         if(editing) {
             float w=getWidth()/scale;
             float tb=toolbarTop();
@@ -942,6 +943,21 @@ final class RacingControlsView extends View {
         glyph(canvas,a,cx,yy+15,20,false,0xFFFFFFFF);
         glyph(canvas,b,cx,yy+38,14,false,rec?0xFFFFFFFF:0xFF3FC1F5);
     }
+    // ---- "Super puissance" (src/runtime/power.c): the car x1.5, x2 or x3 in career free roam ----
+    private static final String[] POWER_LEVELS={"Désactivée","×1,5","×2","×3"};
+    private boolean powerHeld;
+    int powerLevel() {return Math.max(0,Math.min(3,layouts.getInt("power",0)));}
+    void setPower(int held) {boolean h=held!=0;if(h!=powerHeld){powerHeld=h;if(racing)invalidate();}}
+    private void drawPower(Canvas canvas) {
+        if(!racing||editing||photoOn||!powerHeld)return;
+        String t="PUISSANCE "+POWER_LEVELS[powerLevel()];
+        // top right, under the ghost mode's badge when it shows (drawGhost)
+        float w=getWidth()/scale,y=bottomOfDrift()+((ghost[0]&1)!=0?32:0);
+        text.setTextSize(13);float tw=text.measureText(t)/2+12,cx=w-24-tw;
+        fill.setColor(0xB0281008);canvas.drawRoundRect(cx-tw,y,cx+tw,y+24,8,8,fill);
+        line.setColor(0x99FF9A32);line.setStrokeWidth(1.5f);canvas.drawRoundRect(cx-tw,y,cx+tw,y+24,8,8,line);
+        glyph(canvas,t,cx,y+12,13,false,0xFFFFB36B);
+    }
     // ---- what the phone feels of the car (src/runtime/haptics.c): knocks, gear changes, nitrous ----
     private static final String[] HAPTIC_LEVELS={"Désactivées","Légères","Normales","Fortes"};
     private static final float[] HAPTIC_GAIN={0,.45f,.75f,1};
@@ -1155,6 +1171,11 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Super puissance (exploration)",POWER_LEVELS[powerLevel()],0,()->{
+            int next=(powerLevel()+1)%4;layouts.edit().putInt("power",next).apply();
+            Toast.makeText(getContext(),next==0?"Super puissance désactivée":"Super puissance "+POWER_LEVELS[next]+" en exploration carrière",Toast.LENGTH_SHORT).show();
+            invalidate();
+        });
         menuRow(rows,"Vibrations de retour",HAPTIC_LEVELS[hapticLevel()],0,()->{
             int next=(hapticLevel()+1)%4;layouts.edit().putInt("haptics",next).apply();
             Toast.makeText(getContext(),"Vibrations de retour : "+HAPTIC_LEVELS[next].toLowerCase(java.util.Locale.FRANCE),Toast.LENGTH_SHORT).show();
