@@ -181,6 +181,14 @@ public final class GameActivity extends NativeActivity {
         if(touchControls!=null)touchControls.setGamepadConnected(connected);
         nativeGamepadConnected(connected);
     }
+    // The radars' marker follows the road on screen: their status 25 times a second (the rest at 4).
+    private final Runnable updateRadars = new Runnable() {
+        @Override public void run() {
+            if(!foreground||touchControls==null)return;
+            touchControls.setRadars(nativeRadarStatus(touchControls.radarsShown()));
+            touchControls.postDelayed(this,40);
+        }
+    };
     private final Runnable updateControlMode = new Runnable() {
         @Override public void run() {
             if(!foreground||touchControls==null)return;
@@ -191,7 +199,6 @@ public final class GameActivity extends NativeActivity {
             touchControls.setGhost(nativeGhostStatus());
             touchControls.setPhotoStatus(nativePhotoStatus());
             updatePerf();
-            touchControls.setRadars(nativeRadarStatus(touchControls.radarsShown()));
             if("server.dll".equals(nativeTakeNotice()))showNotice("Course LAN","Ton server.dll n'est pas la version utilisée pour préparer cette appli : ce téléphone ne peut donc pas créer de course LAN. Tu peux quand même rejoindre une course créée par un autre joueur. Pour en créer une, copie dans le dossier nfsu2 le server.dll de l'installation PC d'où vient l'exécutable du jeu.");
             touchControls.postDelayed(this,250);
         }
@@ -377,7 +384,7 @@ public final class GameActivity extends NativeActivity {
         updateTiltSensor();
         if(inputManager!=null)inputManager.unregisterInputDeviceListener(gamepadListener);
         if (statusWindow != null) statusWindow.dismiss();
-        if (touchControls != null) {touchControls.removeCallbacks(updateControlMode);touchControls.releaseAll();}
+        if (touchControls != null) {touchControls.removeCallbacks(updateControlMode);touchControls.removeCallbacks(updateRadars);touchControls.releaseAll();}
         if (controlsWindow != null) controlsWindow.dismiss();
         super.onPause();
     }
@@ -388,7 +395,7 @@ public final class GameActivity extends NativeActivity {
         holdLanBroadcasts(true);
         updateTiltSensor();
         if(inputManager!=null){inputManager.registerInputDeviceListener(gamepadListener,null);updateGamepads();}
-        if(touchControls!=null) {touchControls.removeCallbacks(updateControlMode);touchControls.post(updateControlMode);}
+        if(touchControls!=null) {touchControls.removeCallbacks(updateControlMode);touchControls.post(updateControlMode);touchControls.removeCallbacks(updateRadars);touchControls.post(updateRadars);}
         boolean allowed = Build.VERSION.SDK_INT >= 30
                 ? Environment.isExternalStorageManager()
                 : checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED

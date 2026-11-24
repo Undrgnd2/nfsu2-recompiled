@@ -26,6 +26,7 @@
 
 int nfs_guest_readable(uint32_t va, uint32_t bytes);
 int nfs_save_host_path(const char *rel, char *out, size_t n);
+uint32_t nfs_guest_call(uint32_t va, uint32_t ecx, const uint32_t *args, unsigned count, unsigned cleanup);
 int nfs_walls_open_at(float x, float y, float z);
 
 #define G_GAMEMODE    0x00850078u
@@ -44,12 +45,20 @@ int nfs_walls_open_at(float x, float y, float z);
 #define CAR_FWD       0x90u
 #define CAR_SPEED     0x42cu
 #define RADARS_MAX    16
+#define G_VIEW1       0x00832e50u   /* eView 1: +0x40 its camera (+0x40 its place, +0x50 where it looks) */
+#define G_VIEW_W      0x00870980u   /* the view's size in pixels */
+#define G_VIEW_H      0x00870984u
+#define FN_NEW        0x00575620u
+#define FN_VIEW_SCREEN 0x005bc4a0u  /* thiscall view (out*, in*): a world place to the view's pixels, z > 0 in front */
+#define MARK_UP       2.5f          /* the marker over the road (m) */
+#define MARK_FAR      450.f         /* shown this near at most */
+#define ZONE_ALONG    22.f          /* the radar's zone: along its road either way, */
+#define ZONE_SIDE     18.f          /* ... and across it */
 #define RUN_MIN       180.f
 #define STRAIGHT_DEG  4.f
 #define SPACING       500.f
-#define ZONE_M        14.f
-#define ZONE_OUT_M    30.f
-#define ZONE_DZ       6.f
+#define ZONE_OUT_M    40.f
+#define ZONE_DZ       15.f
 #define PASS_MIN_KMH  40.f
 #define RECORDS_FILE  "NFS Underground 2\\RADARS.TXT"
 
@@ -59,8 +68,10 @@ static struct {
     Radar r[RADARS_MAX];
     int in; float best;               /* the radar the car is in (-1 none), its fastest there (km/h) */
 } R = { .in = -1 };
-static atomic_int s_status[9];        /* count, nearest, its distance (m), its direction (degrees, + right), last radar,
-                                         its speed, the record, 1 a new record, the pass's number */
+static atomic_int s_status[13];       /* count, nearest, its distance (m), its direction (degrees, + right), last radar,
+                                         its speed, the record, 1 a new record, the pass's number; the nearest one's
+                                         marker: 1 on screen, x and y (1/10000 of the view), its distance (m) */
+static uint32_t s_scr;                /* guest scratch: the place, then the view's pixels */
 static int s_passes;
 
 static int ok(uint32_t va, uint32_t n) { return va >= 0x10000u && nfs_guest_readable(va, n); }
@@ -166,12 +177,38 @@ int nfs_radar_info(int i, float *start, float *dir, int *record) {
 }
 int nfs_radar_count(void) { return R.n; }
 void nfs_radars_enable(int on) { atomic_store(&s_on, on != 0); }
-void nfs_radars_status(int out[9]) { for (int i = 0; i < 9; i++) out[i] = atomic_load(&s_status[i]); }
+void nfs_radars_status(int out[13]) { for (int i = 0; i < 13; i++) out[i] = atomic_load(&s_status[i]); }
+/* in radar r's zone: within ZONE_ALONG of it along its road and ZONE_SIDE across, about its height */
+static int in_zone(const Radar *r, float x, float y, float z) {
+    float px = x - r->x, py = y - r->y, along = px * r->dx + py * r->dy, side = px * r->dy - py * r->dx;
+    return fabsf(along) < ZONE_ALONG && fabsf(side) < ZONE_SIDE && fabsf(z - r->z) < ZONE_DZ;
+}
+/* the nearest radar's marker on the screen: its place over the road through the game's view (as nfsu2-web's
+ * roam_game.c places names over friends' cars) */
+static void marker(const Radar *r, float d) {
+    atomic_store(&s_status[9], 0);
+    if (d > MARK_FAR) return;
+    uint32_t cam = rd(G_VIEW1 + 0x40u);
+    if (!ok(cam, 0x5c)) return;
+    float e[3] = { rdf(cam + 0x40u), rdf(cam + 0x44u), rdf(cam + 0x48u) }, f[3] = { rdf(cam + 0x50u), rdf(cam + 0x54u), rdf(cam + 0x58u) };
+    float p[3] = { r->x, r->y, r->z + MARK_UP };
+    if ((p[0] - e[0]) * f[0] + (p[1] - e[1]) * f[1] + (p[2] - e[2]) * f[2] < 1.f) return;   /* behind the camera */
+    if (!s_scr) { uint32_t sz = 32; s_scr = nfs_guest_call(FN_NEW, 0, &sz, 1, 4); if (!ok(s_scr, 32)) { s_scr = 0; return; } }
+    for (int i = 0; i < 3; i++) { uint32_t v; memcpy(&v, &p[i], 4); MEM32(s_scr + 4u * (uint32_t)i) = v; }
+    MEM32(s_scr + 12u) = 0x3f800000u;
+    uint32_t a[2] = { s_scr + 16u, s_scr };
+    nfs_guest_call(FN_VIEW_SCREEN, G_VIEW1, a, 2, 0);
+    float sx = rdf(s_scr + 16u), sy = rdf(s_scr + 20u), sz = rdf(s_scr + 24u);
+    float w = (float)(int32_t)rd(G_VIEW_W), h = (float)(int32_t)rd(G_VIEW_H);
+    if (!(sz > 0.f) || !(w > 0.f) || !(h > 0.f) || !(sx >= 0.f) || !(sx <= w) || !(sy >= 0.f) || !(sy <= h)) return;
+    atomic_store(&s_status[10], (int)lrintf(sx / w * 10000.f)); atomic_store(&s_status[11], (int)lrintf(sy / h * 10000.f));
+    atomic_store(&s_status[12], (int)lrintf(d)); atomic_store(&s_status[9], 1);
+}
 
 void nfs_radars_frame(void) {
     uint32_t pl = rd(G_PLAYER1), car = pl ? rd(pl + 4u) : 0;
     int roam = atomic_load(&s_on) && rd(G_GAMEMODE) == 1u && rd(G_RACETYPE) == 0u && rd(G_FLOW) == 6u && rd(G_RACEPARAMS) == 4000u && ok(car, CAR_SPEED + 4u);
-    if (!roam) { atomic_store(&s_status[0], 0); R.in = -1; return; }
+    if (!roam) { atomic_store(&s_status[0], 0); atomic_store(&s_status[9], 0); R.in = -1; return; }
     static unsigned tick;
     if (!R.built || (++tick % 120u == 0u && signature() != R.sig)) build();   /* (another world: built again) */
     if (!R.n) { atomic_store(&s_status[0], 0); return; }
@@ -186,6 +223,7 @@ void nfs_radars_frame(void) {
         float d = hypotf(r->x - x, r->y - y);
         if (kmh > R.best) R.best = kmh;
         if (d > ZONE_OUT_M) {
+            LOGI("Radars: radar %d left, %.0f km/h at most", R.in + 1, (double)R.best);
             int v = (int)lrintf(R.best), was = r->record, rec = v > was;
             if (v >= PASS_MIN_KMH) {
                 if (rec) { r->record = v; save_records(); }
@@ -196,7 +234,12 @@ void nfs_radars_frame(void) {
             }
             R.in = -1;
         }
-    } else if (near >= 0 && nd < ZONE_M && fabsf(R.r[near].z - z) < ZONE_DZ) { R.in = near; R.best = kmh; }
+    } else if (near >= 0 && in_zone(&R.r[near], x, y, z)) { R.in = near; R.best = kmh; LOGI("Radars: radar %d entered at %.0f km/h", near + 1, (double)kmh); }
+    else if (near >= 0 && nd < 60.f) {
+        static int said = -1;
+        if (said != near) { said = near; LOGI("Radars: near radar %d (%.0f m), height %.1f against the car's %.1f", near + 1, (double)nd, (double)R.r[near].z, (double)z); }
+    }
+    if (near >= 0) marker(&R.r[near], nd);
     /* the nearest one, as the car looks */
     float dx = R.r[near].x - x, dy = R.r[near].y - y, fl = hypotf(fx, fy), ang = 0;
     if (fl > 1e-3f && nd > 1e-3f) {

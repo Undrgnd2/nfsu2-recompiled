@@ -333,8 +333,8 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRadarStatus(JNIEnv* env,jclass,jboolean on){
-    nfs_radars_enable(on==JNI_TRUE);int status[9];nfs_radars_status(status);
-    jintArray out=env->NewIntArray(9);if(out)env->SetIntArrayRegion(out,0,9,reinterpret_cast<const jint*>(status));return out;
+    nfs_radars_enable(on==JNI_TRUE);int status[13];nfs_radars_status(status);
+    jintArray out=env->NewIntArray(13);if(out)env->SetIntArrayRegion(out,0,13,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTeleport(JNIEnv*,jclass,jint what){return nfs_teleport(what);}
 // The radars for the world map's list: each one's record (0 none yet), its distance from the car is not known here.

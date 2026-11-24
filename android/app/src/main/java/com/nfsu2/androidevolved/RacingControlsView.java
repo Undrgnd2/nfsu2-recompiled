@@ -880,13 +880,14 @@ final class RacingControlsView extends View {
             }).setNegativeButton("Fermer",null).show();
     }
     // ---- the radars (src/runtime/radars.c): the nearest one's distance and direction, a note at each pass ----
-    private int[] radars=new int[9];private long radarUntil;
+    private int[] radars=new int[13];private long radarUntil;
     boolean radarsShown() {return layouts.getBoolean("radars",true);}
     void setRadars(int[] s) {
-        if(s==null||s.length<9)return;
+        if(s==null||s.length<13)return;
         long now=android.os.SystemClock.uptimeMillis();
         if(s[8]!=radars[8]&&s[8]>0)radarUntil=now+3500;
         boolean changed=!java.util.Arrays.equals(s,radars)||radarUntil!=0&&now>radarUntil;
+        if(s[8]!=radars[8]&&s[8]>0)performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         if(radarUntil!=0&&now>radarUntil)radarUntil=0;
         radars=s;if(changed&&racing)invalidate();
     }
@@ -904,6 +905,19 @@ final class RacingControlsView extends View {
         path.reset();path.moveTo(ax,ay-8);path.lineTo(ax+6,ay+6);path.lineTo(ax,ay+3);path.lineTo(ax-6,ay+6);path.close();
         fill.setColor(0xFF3FC1F5);canvas.drawPath(path,fill);canvas.restore();
         glyph(canvas,head,x0+30+tw/2,y+13,13,false,0xFF3FC1F5);
+        // the nearest one's marker on the road (MW's speed trap): a pole with the radar's number and the record
+        if(radars[9]!=0) {
+            float mx=radars[10]/10000f*w,my=radars[11]/10000f*(getHeight()/scale),k=Math.max(.55f,Math.min(1.4f,90f/Math.max(30,radars[12])));
+            float r=18*k;
+            line.setColor(0xCC3FC1F5);line.setStrokeWidth(3*k);canvas.drawLine(mx,my+r,mx,my+r+26*k,line);
+            fill.setColor(0xD00A1628);canvas.drawCircle(mx,my,r,fill);
+            line.setStrokeWidth(2.5f*k);canvas.drawCircle(mx,my,r,line);
+            fill.setColor(0xFF3FC1F5);   // a camera: body and lens
+            canvas.drawRoundRect(mx-r*.55f,my-r*.32f,mx+r*.45f,my+r*.32f,r*.1f,r*.1f,fill);
+            canvas.drawRect(mx+r*.45f,my-r*.18f,mx+r*.7f,my+r*.18f,fill);
+            String lab="RADAR "+radars[1]+(radars[12]<1000?"  "+radars[12]+" m":"");
+            glyph(canvas,lab,mx,my-r-10*k,12*Math.max(1,k),false,0xFF3FC1F5);
+        }
         // the pass: its speed, the record
         if(radarUntil==0)return;
         boolean rec=radars[7]!=0;
