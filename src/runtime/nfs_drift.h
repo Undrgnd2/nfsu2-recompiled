@@ -105,7 +105,13 @@ int nfs_cheat(int cmd, int arg);            /* any thread: 1 money, 2 nitrous re
 int nfs_cheat_parts(void);
 void nfs_cheats_frame(void);
 /* Speed traps in career free roam (radars.c). */
-void nfs_radars_frame(void);                /* guest thread, after each Present */
+void nfs_radars_frame(void);
+int nfs_radar_count(void);
+int nfs_radar_info(int i, float *start, float *dir, int *record);
+/* The world map's Téléporter (teleport.c). */
+int nfs_teleport_status(void);              /* 1 the world map is open in career free roam */
+int nfs_teleport(int what);                 /* any thread: 1..6 a shop's kind, 100 + i radar i */
+void nfs_teleport_frame(void);              /* guest thread, after each Present */                /* guest thread, after each Present */
 void nfs_radars_enable(int on);             /* the touch menu's switch (any thread) */
 void nfs_radars_status(int out[9]);         /* count, nearest, its distance (m), its direction (degrees), last radar, speed, record, new (1, 2 first), pass number */                /* guest thread, after each Present */         /* uniques.c: wraps 0x515500 */
 void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */

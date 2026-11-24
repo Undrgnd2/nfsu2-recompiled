@@ -53,7 +53,7 @@ int nfs_walls_open_at(float x, float y, float z);
 #define PASS_MIN_KMH  40.f
 #define RECORDS_FILE  "NFS Underground 2\\RADARS.TXT"
 
-typedef struct { float x, y, z; int record; } Radar;
+typedef struct { float x, y, z; int record; float sx, sy, sz, dx, dy; } Radar;   /* its straight run's start, its way */
 static struct {
     uint32_t sig; int built, n;
     Radar r[RADARS_MAX];
@@ -110,7 +110,7 @@ static void save_records(void) {
     fclose(f);
 }
 
-typedef struct { float x, y, z, len; } Run;
+typedef struct { float x, y, z, len, sx, sy, sz, dx, dy; } Run;
 static int run_cmp(const void *a, const void *b) { float d = ((const Run *)b)->len - ((const Run *)a)->len; return d > 0 ? 1 : d < 0 ? -1 : 0; }
 
 static void build(void) {
@@ -139,7 +139,7 @@ static void build(void) {
                 uint32_t nb = r + RD_NODE0 + NODE_SZ * (uint32_t)b;
                 float bx = rdf(nb), by = rdf(nb + 4u);
                 float za = (float)(int16_t)MEM16(na + ND_Z) * 0.125f, zb = (float)(int16_t)MEM16(nb + ND_Z) * 0.125f;
-                if (isfinite(ax + ay + bx + by)) runs[nrun++] = (Run){ (ax + bx) / 2, (ay + by) / 2, (za + zb) / 2, len };
+                if (isfinite(ax + ay + bx + by)) runs[nrun++] = (Run){ (ax + bx) / 2, (ay + by) / 2, (za + zb) / 2, len, ax, ay, za, dx0, dy0 };
             }
             a = b > a ? b : a + 1;
         }
@@ -149,7 +149,7 @@ static void build(void) {
         int near = 0;
         for (int k = 0; k < R.n && !near; k++) near = hypotf(R.r[k].x - runs[i].x, R.r[k].y - runs[i].y) < SPACING;
         if (near || !nfs_walls_open_at(runs[i].x, runs[i].y, runs[i].z + 0.5f)) continue;
-        R.r[R.n++] = (Radar){ runs[i].x, runs[i].y, runs[i].z, 0 };
+        R.r[R.n++] = (Radar){ runs[i].x, runs[i].y, runs[i].z, 0, runs[i].sx, runs[i].sy, runs[i].sz, runs[i].dx, runs[i].dy };
     }
     free(runs);
     load_records();
@@ -157,6 +157,14 @@ static void build(void) {
 }
 
 static atomic_int s_on = 1;
+/* teleport.c: radar i (from 0): its run's start (where to go), its way, its record; 0 none */
+int nfs_radar_info(int i, float *start, float *dir, int *record) {
+    if (i < 0 || i >= R.n) return 0;
+    start[0] = R.r[i].sx; start[1] = R.r[i].sy; start[2] = R.r[i].sz; dir[0] = R.r[i].dx; dir[1] = R.r[i].dy;
+    *record = R.r[i].record;
+    return 1;
+}
+int nfs_radar_count(void) { return R.n; }
 void nfs_radars_enable(int on) { atomic_store(&s_on, on != 0); }
 void nfs_radars_status(int out[9]) { for (int i = 0; i < 9; i++) out[i] = atomic_load(&s_status[i]); }
 

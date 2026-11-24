@@ -328,13 +328,20 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeGhostStatus(JNIEnv* env,jclass){
-    int status[7];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();status[6]=nfs_engage_status();
-    jintArray out=env->NewIntArray(7);if(out)env->SetIntArrayRegion(out,0,7,reinterpret_cast<const jint*>(status));return out;
+    int status[8];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();status[6]=nfs_engage_status();status[7]=nfs_teleport_status();
+    jintArray out=env->NewIntArray(8);if(out)env->SetIntArrayRegion(out,0,8,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRadarStatus(JNIEnv* env,jclass,jboolean on){
     nfs_radars_enable(on==JNI_TRUE);int status[9];nfs_radars_status(status);
     jintArray out=env->NewIntArray(9);if(out)env->SetIntArrayRegion(out,0,9,reinterpret_cast<const jint*>(status));return out;
+}
+extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTeleport(JNIEnv*,jclass,jint what){return nfs_teleport(what);}
+// The radars for the world map's list: each one's record (0 none yet), its distance from the car is not known here.
+extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRadarList(JNIEnv* env,jclass){
+    int n=nfs_radar_count();if(n<0)n=0;std::vector<jint> v(size_t(n));
+    for(int i=0;i<n;++i){float s[3],d[2];int rec=0;nfs_radar_info(i,s,d,&rec);v[size_t(i)]=rec;}
+    jintArray out=env->NewIntArray(n);if(out&&n)env->SetIntArrayRegion(out,0,n,v.data());return out;
 }
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeCheat(JNIEnv*,jclass,jint cmd,jint arg){return nfs_cheat(cmd,arg);}
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeFrameCount(JNIEnv*,jclass){return jint(guestPresentCount());}

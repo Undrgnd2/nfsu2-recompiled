@@ -27,7 +27,7 @@ final class RacingControlsView extends View {
     /** Touches outside every control drive the game's mouse: x/y as fractions of the view, phase 0 down, 1 move, 2 up. */
     interface Pointer { void touch(float x, float y, int phase); }
     // Special controls that do not map to a DirectInput scan code.
-    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8;
+    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8, TELEPORT = -40;
     /** The hydraulics' keys (the game's Pressurize and Bounce: H and J), held while their button is on. */
     private static final int KEY_LIFT = 0x23, KEY_BOUNCE = 0x24;
     /** Photo mode (photo.c): its button, and its own controls while it is on. */
@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -166,6 +166,7 @@ final class RacingControlsView extends View {
             // Lancer: Engage (Enter) on an event's or a shop's marker, shown only then (undrgnd2.eu's Start; engage.c)
             float lancerY=h-B-(layouts.getBoolean("gears",false)?(stick?132:112)+56:(stick?120:104))-8-48;
             addU(L,lancerY,110,48,PILL,"t:Lancer",0x1c,-1,0);controls.get(controls.size()-1).hidden=!engageOn();
+            addU(w/2-80,T+56,160,48,PILL,"t:Téléporter",TELEPORT,-1,0);controls.get(controls.size()-1).hidden=!mapOpen();
         } else {
             final float k=52;
             add(L,T,48,"settings",EDIT);
@@ -177,6 +178,7 @@ final class RacingControlsView extends View {
             addU(w-R-136,h-B-k-12-k,136,k,PILL,"t:Retour",1,-1,0);
             addU(w-R-136,h-B-k,136,k,PILL,"t:OK",0x1c,-1,0);
             add(w/2-23,h-B-46,46,"keyboard",TEXT);
+            addU(w/2-80,T,160,48,PILL,"t:Téléporter",TELEPORT,-1,0);controls.get(controls.size()-1).hidden=!mapOpen();
         }
     }
     /** Photo mode's controls: leave, orbit or free camera, reset; the stick moves the camera, ▲ ▼ lift it, ↺ ↻ tilt
@@ -797,11 +799,12 @@ final class RacingControlsView extends View {
             showoffSeen=presses;
         }
         if(status==null||status.length<3||java.util.Arrays.equals(status,ghost))return;
-        boolean engageWas=engageOn();
+        boolean engageWas=engageOn(),mapWas=mapOpen();
         boolean lightsChanged=status.length>4&&(ghost.length<5||ghost[4]!=status[4]);
         if(lightsChanged&&racing)invalidate();
         ghost=status;
         if(engageWas!=engageOn())for(Control c:controls)if(c.scan==0x1c&&c.icon.equals("t:Lancer")){c.hidden=!engageOn();if(c.hidden&&c.held>0){c.held=1;release(c);}}
+        if(mapWas!=mapOpen())for(Control c:controls)if(c.scan==TELEPORT)c.hidden=!mapOpen();
         int state=status.length>3?status[3]:0;
         if(state!=hydState) {
             int was=hydState;hydState=state;
@@ -911,7 +914,31 @@ final class RacingControlsView extends View {
         glyph(canvas,a,cx,yy+15,20,false,0xFFFFFFFF);
         glyph(canvas,b,cx,yy+38,14,false,rec?0xFFFFFFFF:0xFF3FC1F5);
     }
-    private boolean engageOn() {return ghost.length>6&&ghost[6]!=0;}
+    // ---- the world map's Téléporter (src/runtime/teleport.c) ----
+    private boolean mapOpen() {return ghost.length>7&&ghost[7]!=0;}
+    private static final String[] TELEPORT_NAMES={"Concession","Atelier style","Atelier habitacle","Atelier peinture","Atelier performances","Garage","Radars…"};
+    private void showTeleport() {
+        if(photo==null)return;
+        new AlertDialog.Builder(getContext()).setTitle("Se téléporter")
+            .setItems(TELEPORT_NAMES,(d,which)->{
+                if(which==6){showRadarTeleport();return;}
+                teleportTo(which+1,TELEPORT_NAMES[which]);
+            }).setNegativeButton("Annuler",null).show();
+    }
+    private void showRadarTeleport() {
+        int[] rec=photo.radarList();
+        if(rec==null||rec.length==0){Toast.makeText(getContext(),"Aucun radar dans cette zone",Toast.LENGTH_SHORT).show();return;}
+        String[] names=new String[rec.length];
+        for(int i=0;i<rec.length;++i)names[i]="Radar "+(i+1)+(rec[i]>0?"  ·  record "+rec[i]+" km/h":"  ·  pas encore passé");
+        new AlertDialog.Builder(getContext()).setTitle("Aller à un radar")
+            .setItems(names,(d,which)->teleportTo(100+which,"le radar "+(which+1))).setNegativeButton("Annuler",null).show();
+    }
+    private void teleportTo(int what,String name) {
+        if(photo.teleport(what)==0){Toast.makeText(getContext(),"Seulement depuis la carte, en exploration carrière",Toast.LENGTH_SHORT).show();return;}
+        tap(1);   // the world map closed (Échap): the jump is at the player's next update
+        Toast.makeText(getContext(),"Téléportation : "+name,Toast.LENGTH_SHORT).show();
+    }
+    private boolean engageOn() {return ghost.length>6&&ghost[6]!=0&&!mapOpen();}
     private int showoffSeen=-1; private long showoffUntil; private String showoffText="";
     private void drawShowoff(Canvas canvas) {
         if(!racing||editing||showoffUntil==0)return;
@@ -1212,6 +1239,7 @@ final class RacingControlsView extends View {
                 else if(c.scan==TEXT) {releaseAll();textInput.run();}
                 else if(c.scan==EDIT) {releaseAll();showMenu();}
                 else if(c.scan==PH_TOGGLE) {if(photo!=null)photo.input(PHOTO_OPEN,1,0);}
+                else if(c.scan==TELEPORT) {releaseAll();showTeleport();}
                 else if(c.scan==HYD_LIFT) setHyd(hyd==1?0:1);
                 else if(c.scan==HYD_BOUNCE) setHyd(hyd==2?0:2);
                 else if(c.scan==STEERMODE) {
