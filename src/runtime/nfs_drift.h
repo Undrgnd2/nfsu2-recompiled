@@ -112,6 +112,9 @@ int nfs_radar_info(int i, float *start, float *dir, int *record);
 int nfs_teleport_status(void);              /* 1 the world map is open in career free roam */
 int nfs_teleport(int what);                 /* any thread: 1..6 a shop's kind, 100 + i radar i */
 void nfs_teleport_frame(void);              /* guest thread, after each Present */                /* guest thread, after each Present */
+/* What the phone feels of the player's car (haptics.c). */
+void nfs_haptics_frame(void);               /* guest thread, after each Present */
+void nfs_haptics_status(int out[4]);        /* knocks (their number, the last one's strength 0..100), gear changes, nitrous going on (their numbers) */
 /* A cruise control in career free roam (cruise.c). */
 void nfs_cruise_ov_input(void);             /* wraps 0x407A30, the player's controls into the car */
 void nfs_cruise_frame(void);                /* guest thread, after each Present */

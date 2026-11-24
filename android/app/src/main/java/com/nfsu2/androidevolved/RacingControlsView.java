@@ -942,6 +942,31 @@ final class RacingControlsView extends View {
         glyph(canvas,a,cx,yy+15,20,false,0xFFFFFFFF);
         glyph(canvas,b,cx,yy+38,14,false,rec?0xFFFFFFFF:0xFF3FC1F5);
     }
+    // ---- what the phone feels of the car (src/runtime/haptics.c): knocks, gear changes, nitrous ----
+    private static final String[] HAPTIC_LEVELS={"Désactivées","Légères","Normales","Fortes"};
+    private static final float[] HAPTIC_GAIN={0,.45f,.75f,1};
+    private int[] haptics;private android.os.Vibrator vibrator;
+    private int hapticLevel() {return Math.max(0,Math.min(3,layouts.getInt("haptics",2)));}
+    void setHaptics(int[] s) {
+        if(s==null||s.length<4)return;
+        int[] was=haptics;haptics=s;
+        if(was==null||hapticLevel()==0||!racing||photoOn)return;
+        if(s[0]!=was[0])buzz(45+(int)(85*s[1]/100f),.35f+.65f*s[1]/100f);    // a knock: longer and stronger as it is
+        else if(s[3]!=was[3])buzz(220,.6f);                                     // the nitrous on
+        else if(s[2]!=was[2])buzz(16,.5f);                                      // a gear
+    }
+    private void buzz(int ms,float strength) {
+        if(vibrator==null){
+            android.os.VibratorManager m=android.os.Build.VERSION.SDK_INT>=31?getContext().getSystemService(android.os.VibratorManager.class):null;
+            vibrator=m!=null?m.getDefaultVibrator():getContext().getSystemService(android.os.Vibrator.class);
+        }
+        if(vibrator==null||!vibrator.hasVibrator())return;
+        int amp=Math.max(1,Math.min(255,Math.round(255*strength*HAPTIC_GAIN[hapticLevel()])));
+        android.os.VibrationEffect e=vibrator.hasAmplitudeControl()?android.os.VibrationEffect.createOneShot(ms,amp)
+                :android.os.VibrationEffect.createOneShot(Math.max(10,Math.round(ms*HAPTIC_GAIN[hapticLevel()])),android.os.VibrationEffect.DEFAULT_AMPLITUDE);
+        android.media.AudioAttributes game=new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_GAME).build();
+        try{vibrator.vibrate(e,game);}catch(RuntimeException ignored){}
+    }
     // ---- the cruise control (src/runtime/cruise.c) ----
     private int[] cruise=new int[5];private int cruiseSeen=-1;private long cruiseUntil;private String cruiseText="";
     boolean cruiseShown() {return layouts.getBoolean("cruise",true);}
@@ -1130,6 +1155,11 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Vibrations de retour",HAPTIC_LEVELS[hapticLevel()],0,()->{
+            int next=(hapticLevel()+1)%4;layouts.edit().putInt("haptics",next).apply();
+            Toast.makeText(getContext(),"Vibrations de retour : "+HAPTIC_LEVELS[next].toLowerCase(java.util.Locale.FRANCE),Toast.LENGTH_SHORT).show();
+            if(next!=0)buzz(90,.8f);
+        });
         menuRow(rows,"Régulateur de vitesse",cruiseShown()?"Bouton affiché":"Bouton masqué",0,()->{layouts.edit().putBoolean("cruise",!cruiseShown()).apply();layoutControls();});
         menuRow(rows,"Radars (vitesse de pointe)",radarsShown()?"Affichés":"Masqués",0,()->{layouts.edit().putBoolean("radars",!radarsShown()).apply();invalidate();});
         menuRow(rows,"Triches (solo)",cheatsOn()?"Activées":"Désactivées",0,this::showCheats);

@@ -51,6 +51,7 @@ public final class GameActivity extends NativeActivity {
     private static native int nativeCheat(int cmd, int arg);
     private static native int[] nativeRadarStatus(boolean on);
     private static native int[] nativeCruiseStatus();
+    private static native int[] nativeHapticsStatus();
     private static native int nativeTeleport(int what);
     private static native int[] nativeRadarList();
     // ---- the FPS / battery counter (the touch controls' menu shows it): frames shown each second, the CPU's hottest
@@ -188,6 +189,7 @@ public final class GameActivity extends NativeActivity {
             if(!foreground||touchControls==null)return;
             touchControls.setRadars(nativeRadarStatus(touchControls.radarsShown()));
             touchControls.setCruise(nativeCruiseStatus());
+            touchControls.setHaptics(nativeHapticsStatus());
             touchControls.postDelayed(this,40);
         }
     };
