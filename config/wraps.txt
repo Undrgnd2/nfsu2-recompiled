@@ -58,3 +58,4 @@
 0x00578060  open city: free roam's barrier groups named with stage 5 (walls.c)
 0x005F54A0  open city: a player car's collision groups named with stage 5 (walls.c)
 0x00513C50  cheats: the car lot's car types made with no locks while the cheat is on (cheats.c)
+0x00527D30  cheats: the career's available races, every stage's while the cheat is on (cheats.c)

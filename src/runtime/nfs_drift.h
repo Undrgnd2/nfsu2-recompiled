@@ -103,7 +103,8 @@ void nfs_uniques_ov_unlocked(void);
 /* The solo cheats (cheats.c). */
 int nfs_cheat(int cmd, int arg);            /* any thread: 1 money, 2 nitrous refill, 3 nitrous always full, 4 parts unlocked */
 int nfs_cheat_parts(void);
-void nfs_cheats_ov_cartypes(void);          /* cheats.c: wraps 0x513C50, the car lot's car types */
+void nfs_cheats_ov_cartypes(void);
+void nfs_cheats_ov_races(void);             /* cheats.c: wraps 0x527D30, the career's available races */          /* cheats.c: wraps 0x513C50, the car lot's car types */
 void nfs_cheats_frame(void);
 /* Speed traps in career free roam (radars.c). */
 void nfs_radars_frame(void);

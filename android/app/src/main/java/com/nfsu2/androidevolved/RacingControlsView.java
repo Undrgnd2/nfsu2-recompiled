@@ -867,6 +867,7 @@ final class RacingControlsView extends View {
         photo.cheat(3,cheatsOn()&&layouts.getBoolean("cheats.nos",false)?1:0);
         photo.cheat(4,cheatsOn()&&layouts.getBoolean("cheats.parts",false)?1:0);
         photo.cheat(5,cheatsOn()&&layouts.getBoolean("cheats.cars",false)?1:0);
+        photo.cheat(8,cheatsOn()&&layouts.getBoolean("cheats.events",false)?1:0);
     }
     private void cheatToast(boolean done,String yes,String no) {
         Toast.makeText(getContext(),done?yes:no,Toast.LENGTH_SHORT).show();
@@ -883,6 +884,7 @@ final class RacingControlsView extends View {
             items.add("Performances au maximum…");
             items.add("Toutes les voitures à la concession : "+(layouts.getBoolean("cheats.cars",false)?"Oui":"Non"));
             items.add("Passer à l'étape…");
+            items.add("Toutes les épreuves sur la carte : "+(layouts.getBoolean("cheats.events",false)?"Oui":"Non"));
         }
         new AlertDialog.Builder(getContext()).setTitle("Triches (solo)")
             .setItems(items.toArray(new String[0]),(d,which)->{
@@ -899,6 +901,8 @@ final class RacingControlsView extends View {
                     case 7: {boolean cars=!layouts.getBoolean("cheats.cars",false);layouts.edit().putBoolean("cheats.cars",cars).apply();sendCheats();
                         Toast.makeText(getContext(),cars?"Toutes les voitures à la concession dès l'étape 1":"Concession : comme le jeu la débloque",Toast.LENGTH_SHORT).show();break;}
                     case 8: showStageJump();break;
+                    case 9: {boolean ev=!layouts.getBoolean("cheats.events",false);layouts.edit().putBoolean("cheats.events",ev).apply();sendCheats();
+                        Toast.makeText(getContext(),ev?"Toutes les épreuves : après ta prochaine course, ou en rechargeant la carrière":"Épreuves : celles de ton étape",Toast.LENGTH_LONG).show();break;}
                 }
             }).setNegativeButton("Fermer",null).show();
     }

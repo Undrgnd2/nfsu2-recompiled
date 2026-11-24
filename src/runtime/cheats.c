@@ -14,7 +14,12 @@
  *    bytes a stage: +0xFC done, +0x100 its settings, +0x28 their final event) has its final event won (0x532C60:
  *    +0xFC set, then 0x528320 the stage + 1). A jump to stage n marks the stages before it done and sets the stage;
  *    the garage gets 2 open slots a stage (garage.c). The career's lists (its races, shops, walls, sponsor) are made
- *    from the stage as the career loads, so the player saves and loads it again. In career free roam only.
+ *    from the stage as the career loads, so the player saves and loads it again. In career free roam only;
+ *  - every event: the career's available races (Career +0x71C8, 64 pointers) are made by 0x527D30 (thiscall Career:
+ *    from the race table [0x8383E0] x [0x8383E4], 0x88 bytes: +8 hash, +0x34 kind (2 URL), +0x37 stage, +0x7F open;
+ *    the stage's open races not won, then its URL races), as the career loads and after a race. While it is on, the
+ *    other stages' races (1-5) not won are put in after the game's, the open ones and the URL ones, while there is
+ *    room: the map shows them and their markers start them.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -36,7 +41,7 @@ int nfs_guest_readable(uint32_t va, uint32_t bytes);
 #define BANK_MAX    999999999u
 
 static atomic_uint s_money;          /* money asked for, not given yet */
-static atomic_int s_refill, s_nos_full, s_parts, s_cars, s_stage;
+static atomic_int s_refill, s_nos_full, s_parts, s_cars, s_stage, s_events;
 #define K_STAGE     0x7af8u
 #define K_STAGE_REC 0x72d8u
 #define STAGE_REC   0x104u
@@ -61,10 +66,54 @@ int nfs_cheat(int cmd, int arg) {
         atomic_store(&s_stage, arg); return 1;
     }
     case 7: return solo() && rd(G_GAMEMODE) == 1u ? (int)rd(G_CAREER + K_STAGE) : -1;   /* the career's stage */
+    case 8: atomic_store(&s_events, arg != 0); LOGI("Cheats: every stage's events %s", arg ? "on" : "off"); return 1;
     }
     return 0;
 }
 int nfs_cheat_parts(void) { return atomic_load(&s_parts) && solo() && rd(G_GAMEMODE) == 1u; }
+
+/* 0x527D30 (thiscall Career): the career's available races */
+void sub_00527D30_orig(void);
+#define G_RACES         0x008383e0u
+#define G_NRACES        0x008383e4u
+#define RACE_SZ         0x88u
+#define K_AVAIL         0x71c8u
+#define AVAIL_N         64u
+#define K_NEVENTS       0x7afcu
+#define K_EVENTS        0x7b00u
+static int won(uint32_t career, uint32_t hash) {
+    uint32_t n = rd(career + K_NEVENTS);
+    if (n > 0x181u) return 0;
+    for (uint32_t i = 0; i < n; i++) if (MEM32(career + K_EVENTS + 8u * i) == hash) return MEM8(career + K_EVENTS + 8u * i + 6u) == 1u;
+    return 0;
+}
+void nfs_cheats_ov_races(void) {
+    uint32_t career = g_ecx;
+    sub_00527D30_orig();
+    if (!atomic_load(&s_events) || !solo() || rd(G_GAMEMODE) != 1u || career != G_CAREER) return;
+    uint32_t races = rd(G_RACES), n = rd(G_NRACES), st = rd(career + K_STAGE);
+    if (!races || n > 4096u || !ok(races, n * RACE_SZ) || !ok(career + K_AVAIL, 4u * AVAIL_N)) return;
+    unsigned added = 0, closed = 0, full = 0, had = 0;
+    for (uint32_t i = 0; i < AVAIL_N; i++) had += MEM32(career + K_AVAIL + 4u * i) != 0;
+    for (int pass = 1; pass <= 5; pass++)            /* stage by stage, the career's own first */
+        for (uint32_t i = 0; i < n; i++) {
+            uint32_t r = races + i * RACE_SZ, h = MEM32(r + 8u);
+            int stage = (int8_t)MEM8(r + 0x37u);
+            if (stage != pass || (uint32_t)stage == st || !h || won(career, h)) continue;
+            if (!MEM8(r + 0x7fu) && MEM8(r + 0x34u) != 2u) { closed++; continue; }
+            uint32_t free_at = AVAIL_N; int there = 0;
+            for (uint32_t k = 0; k < AVAIL_N; k++) {
+                uint32_t a = MEM32(career + K_AVAIL + 4u * k);
+                if (a && ok(a + 8u, 4) && MEM32(a + 8u) == h) { there = 1; break; }
+                if (!a && free_at == AVAIL_N) free_at = k;
+            }
+            if (there) continue;
+            if (free_at == AVAIL_N) { full++; continue; }
+            MEM32(career + K_AVAIL + 4u * free_at) = r;
+            added++;
+        }
+    LOGI("Cheats: every stage's events: %u races added to the game's %u (stage %u; %u not open yet left out, %u no room)", added, had, st, closed, full);
+}
 
 /* 0x513C50 (thiscall Career (list): the car types the car lot may show) */
 void sub_00513C50_orig(void);
