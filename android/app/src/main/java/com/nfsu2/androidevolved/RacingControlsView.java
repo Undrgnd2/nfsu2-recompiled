@@ -528,6 +528,7 @@ final class RacingControlsView extends View {
         drawGhost(canvas);
         drawShowoff(canvas);
         drawPerf(canvas);
+        drawRadars(canvas);
         if(editing) {
             float w=getWidth()/scale;
             float tb=toolbarTop();
@@ -875,6 +876,41 @@ final class RacingControlsView extends View {
                 }
             }).setNegativeButton("Fermer",null).show();
     }
+    // ---- the radars (src/runtime/radars.c): the nearest one's distance and direction, a note at each pass ----
+    private int[] radars=new int[9];private long radarUntil;
+    boolean radarsShown() {return layouts.getBoolean("radars",true);}
+    void setRadars(int[] s) {
+        if(s==null||s.length<9)return;
+        long now=android.os.SystemClock.uptimeMillis();
+        if(s[8]!=radars[8]&&s[8]>0)radarUntil=now+3500;
+        boolean changed=!java.util.Arrays.equals(s,radars)||radarUntil!=0&&now>radarUntil;
+        if(radarUntil!=0&&now>radarUntil)radarUntil=0;
+        radars=s;if(changed&&racing)invalidate();
+    }
+    private void drawRadars(Canvas canvas) {
+        if(!racing||editing||photoOn||!radarsShown()||radars[0]<=0)return;
+        float w=getWidth()/scale;
+        // the nearest one, top left under the buttons: an arrow to it and its distance
+        String d=radars[2]>=1000?String.format(java.util.Locale.FRANCE,"%.1f km",radars[2]/1000f):radars[2]+" m";
+        String head="RADAR "+radars[1]+"  "+d;
+        text.setTextSize(13);float tw=text.measureText(head),x0=12,y=bottomOfDrift()-4;
+        fill.setColor(0xB00A1628);canvas.drawRoundRect(x0,y,x0+tw+44,y+26,10,10,fill);
+        line.setColor(0x993FC1F5);line.setStrokeWidth(1.5f);canvas.drawRoundRect(x0,y,x0+tw+44,y+26,10,10,line);
+        float ax=x0+16,ay=y+13;
+        canvas.save();canvas.rotate(radars[3],ax,ay);
+        path.reset();path.moveTo(ax,ay-8);path.lineTo(ax+6,ay+6);path.lineTo(ax,ay+3);path.lineTo(ax-6,ay+6);path.close();
+        fill.setColor(0xFF3FC1F5);canvas.drawPath(path,fill);canvas.restore();
+        glyph(canvas,head,x0+30+tw/2,y+13,13,false,0xFF3FC1F5);
+        // the pass: its speed, the record
+        if(radarUntil==0)return;
+        boolean rec=radars[7]!=0;
+        String a="RADAR "+radars[4]+" : "+radars[5]+" km/h",b=radars[7]==2?"Premier passage":rec?"NOUVEAU RECORD !":"Record : "+radars[6]+" km/h";
+        float cx=w/2,yy=bottomOfDrift()+70;text.setTextSize(20);float hw=Math.max(text.measureText(a),text.measureText(b)*.75f)/2+18;
+        fill.setColor(rec?0xD01E7A4A:0xB00A1628);canvas.drawRoundRect(cx-hw,yy,cx+hw,yy+50,10,10,fill);
+        line.setColor(0x993FC1F5);canvas.drawRoundRect(cx-hw,yy,cx+hw,yy+50,10,10,line);
+        glyph(canvas,a,cx,yy+15,20,false,0xFFFFFFFF);
+        glyph(canvas,b,cx,yy+38,14,false,rec?0xFFFFFFFF:0xFF3FC1F5);
+    }
     private boolean engageOn() {return ghost.length>6&&ghost[6]!=0;}
     private int showoffSeen=-1; private long showoffUntil; private String showoffText="";
     private void drawShowoff(Canvas canvas) {
@@ -987,6 +1023,7 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Radars (vitesse de pointe)",radarsShown()?"Affichés":"Masqués",0,()->{layouts.edit().putBoolean("radars",!radarsShown()).apply();invalidate();});
         menuRow(rows,"Triches (solo)",cheatsOn()?"Activées":"Désactivées",0,this::showCheats);
         menuRow(rows,"Compteur FPS / batterie",perfShown()?"Affiché":"Masqué",0,()->{layouts.edit().putBoolean("perf",!perfShown()).apply();if(!perfShown())perfText="";invalidate();});
         menuRow(rows,"Limite de FPS",null,0,configureFrameLimit);

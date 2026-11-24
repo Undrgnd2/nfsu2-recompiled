@@ -103,7 +103,11 @@ void nfs_uniques_ov_unlocked(void);
 /* The solo cheats (cheats.c). */
 int nfs_cheat(int cmd, int arg);            /* any thread: 1 money, 2 nitrous refill, 3 nitrous always full, 4 parts unlocked */
 int nfs_cheat_parts(void);
-void nfs_cheats_frame(void);                /* guest thread, after each Present */         /* uniques.c: wraps 0x515500 */
+void nfs_cheats_frame(void);
+/* Speed traps in career free roam (radars.c). */
+void nfs_radars_frame(void);                /* guest thread, after each Present */
+void nfs_radars_enable(int on);             /* the touch menu's switch (any thread) */
+void nfs_radars_status(int out[9]);         /* count, nearest, its distance (m), its direction (degrees), last radar, speed, record, new (1, 2 first), pass number */                /* guest thread, after each Present */         /* uniques.c: wraps 0x515500 */
 void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */
 void nfs_carspot_frame(void);               /* carspot.c: a kept career spot off the map back to the start (each frame) */
 void nfs_walls_frame(void);                 /* walls.c: a car past the career's walls back on its roads (each frame) */

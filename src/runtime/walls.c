@@ -314,6 +314,14 @@ static int check(long f, uint32_t car, int why){
 }
 
 
+/* radars.c: whether (x, y, z) is on this career's side of its walls (1 too when the roads are not as expected) */
+int nfs_walls_open_at(float x, float y, float z) {
+    ensure(0);
+    if (!W.ok) return 1;
+    Where w; where(x, y, z, &w);
+    return w.state != W_PAST;
+}
+
 /* each frame (after Present) */
 void nfs_walls_frame(void) {
     static long f;

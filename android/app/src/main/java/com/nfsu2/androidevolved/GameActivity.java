@@ -49,6 +49,7 @@ public final class GameActivity extends NativeActivity {
     private static native void nativeTone(float exposure, float white);
     private static native int nativeFrameCount();
     private static native int nativeCheat(int cmd, int arg);
+    private static native int[] nativeRadarStatus(boolean on);
     // ---- the FPS / battery counter (the touch controls' menu shows it): frames shown each second, the CPU's hottest
     //      thermal zone where Android lets the app read it, the battery's charge and temperature ----
     private long perfAt; private int perfFrames;
@@ -188,6 +189,7 @@ public final class GameActivity extends NativeActivity {
             touchControls.setGhost(nativeGhostStatus());
             touchControls.setPhotoStatus(nativePhotoStatus());
             updatePerf();
+            touchControls.setRadars(nativeRadarStatus(touchControls.radarsShown()));
             if("server.dll".equals(nativeTakeNotice()))showNotice("Course LAN","Ton server.dll n'est pas la version utilisée pour préparer cette appli : ce téléphone ne peut donc pas créer de course LAN. Tu peux quand même rejoindre une course créée par un autre joueur. Pour en créer une, copie dans le dossier nfsu2 le server.dll de l'installation PC d'où vient l'exécutable du jeu.");
             touchControls.postDelayed(this,250);
         }
