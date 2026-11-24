@@ -55,3 +55,5 @@
 0x00560550  specialties: UI_ICEMAIN screen made, the list place back after Trunk Audio Back (specialties.c)
 0x00515500  uniques: after Caleb, the unique visual parts in every career car's shops (uniques.c)
 0x00407A30  cruise: the player's controls into the car, the throttle held at a speed (cruise.c)
+0x00578060  open city: free roam's barrier groups named with stage 5 (walls.c)
+0x005F54A0  open city: a player car's collision groups named with stage 5 (walls.c)

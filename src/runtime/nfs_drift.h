@@ -134,6 +134,9 @@ void nfs_radars_status(int out[13]);        /* count, nearest, its distance (m),
 void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */
 void nfs_carspot_frame(void);               /* carspot.c: a kept career spot off the map back to the start (each frame) */
 void nfs_walls_frame(void);                 /* walls.c: a car past the career's walls back on its roads (each frame) */
+void nfs_walls_city_open(int on);           /* walls.c, any thread: Ville ouverte, stage 5's walls (none) from stage 1 */
+void nfs_walls_ov_groups(void);             /* walls.c: wraps 0x578060 */
+void nfs_walls_ov_player(void);             /* walls.c: wraps 0x5F54A0 */
 int nfs_engage_status(void);                /* engage.c: 1 while Engage (Enter) does something in free roam */
 void nfs_engage_frame(void);                /* engage.c: Engage at a marker mended (each frame) */
 void nfs_sponsors_frame(void);              /* sponsors.c: Continue on the sponsor screens (once) */

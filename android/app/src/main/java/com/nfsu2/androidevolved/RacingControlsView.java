@@ -963,6 +963,8 @@ final class RacingControlsView extends View {
         glyph(canvas,a,cx,yy+15,20,false,0xFFFFFFFF);
         glyph(canvas,b,cx,yy+38,14,false,rec?0xFFFFFFFF:0xFF3FC1F5);
     }
+    /** Ville ouverte (src/runtime/walls.c): no red walls in career free roam from stage 1. */
+    boolean openCity() {return layouts.getBoolean("opencity",false);}
     // ---- "Super puissance" (src/runtime/power.c): the car x1.5, x2 or x3 in career free roam ----
     private static final String[] POWER_LEVELS={"Désactivée","×1,5","×2","×3"};
     private boolean powerHeld;
@@ -1191,6 +1193,10 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Ville ouverte (sans murs rouges)",openCity()?"Activée":"Désactivée",0,()->{
+            boolean on=!openCity();layouts.edit().putBoolean("opencity",on).apply();
+            Toast.makeText(getContext(),(on?"Ville ouverte":"Murs rouges de la carrière")+" : au prochain chargement de l'exploration (course, magasin, garage…)",Toast.LENGTH_LONG).show();
+        });
         menuRow(rows,"Super puissance (exploration)",POWER_LEVELS[powerLevel()],0,()->{
             int next=(powerLevel()+1)%4;layouts.edit().putInt("power",next).apply();
             Toast.makeText(getContext(),next==0?"Super puissance désactivée":"Super puissance "+POWER_LEVELS[next]+" en exploration carrière",Toast.LENGTH_SHORT).show();

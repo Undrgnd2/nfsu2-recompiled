@@ -10,12 +10,20 @@
  * nearest place on the career's roads at least WALL_GAP from a barrier line, facing away from where it was, through
  * the hot-position jump: when career free roam starts with the car there, and after a reset (R, or the game's own).
  * Career free roam in the city only, not in a new career's prologue. Log lines start "Walls:".
+ *
+ * Ville ouverte (the ⚙ menu): the walls are the stage's: as free roam's world is set up, 0x578060 (its barrier
+ * groups: the track's barrier lines, the scenery, by name) and 0x5F54A0 (each player car's collision groups) name
+ * "BARRIERS_CAREER<stage>" with the career's stage ([0x862838], 1-5). A LAN game's free roam asks stage 5's, the whole
+ * city open; with the switch on, a career at stage 1 to 4 gets that one too while those two run (its stage put back
+ * after). It holds from the next time free roam's world is set up (a race, a shop, a load); the career's own stage,
+ * its events and shops are left as they are.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
 #include "nfs_drift.h"
 #include <android/log.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -315,6 +323,24 @@ static int check(long f, uint32_t car, int why){
 
 
 /* radars.c: whether (x, y, z) is on this career's side of its walls (1 too when the roads are not as expected) */
+/* ---- Ville ouverte ---- */
+void sub_00578060_orig(void);
+void sub_005F54A0_orig(void);
+#define G_STAGE      0x00862838u
+#define STAGE_OPEN   5u
+static atomic_int s_city_open;
+void nfs_walls_city_open(int on) { atomic_store(&s_city_open, on != 0); }
+static void stage_open_while(void (*orig)(void), const char *what) {
+    uint32_t st = rd(G_STAGE);
+    int swap = atomic_load(&s_city_open) && rd(G_GAMEMODE) == 1u && rd(G_RACETYPE) == 0u && st >= 1u && st < STAGE_OPEN;
+    if (swap) MEM32(G_STAGE) = STAGE_OPEN;
+    orig();
+    if (swap) { MEM32(G_STAGE) = st; LOGI("Walls: open city: %s as stage %u's (the career is at stage %u)", what, STAGE_OPEN, st); }
+}
+/* 0x578060 (thiscall): free roam's barrier groups; 0x5F54A0 (thiscall on a player): its car's collision groups */
+void nfs_walls_ov_groups(void) { stage_open_while(sub_00578060_orig, "the barriers"); }
+void nfs_walls_ov_player(void) { stage_open_while(sub_005F54A0_orig, "a player's collision"); }
+
 int nfs_walls_open_at(float x, float y, float z) {
     ensure(0);
     if (!W.ok) return 1;

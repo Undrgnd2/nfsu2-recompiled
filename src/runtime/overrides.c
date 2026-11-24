@@ -109,6 +109,9 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x00560550u, nfs_shop_ov_ice_new },
     /* the unique visual parts after Caleb, src/runtime/uniques.c */
     { 0x00515500u, nfs_uniques_ov_unlocked },
+    /* Ville ouverte: stage 5's walls from stage 1, src/runtime/walls.c */
+    { 0x00578060u, nfs_walls_ov_groups },
+    { 0x005F54A0u, nfs_walls_ov_player },
     /* the cruise control, src/runtime/cruise.c */
     { 0x00407A30u, nfs_cruise_ov_input },
 #endif
