@@ -339,7 +339,7 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTeleport(JNIEnv*,jclass,jint what){return nfs_teleport(what);}
 // The radars for the world map's list: each one's record (0 none yet), its distance from the car is not known here.
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRadarList(JNIEnv* env,jclass){
-    int n=nfs_radar_count();if(n<0)n=0;std::vector<jint> v(size_t(n));
+    int n=nfs_radar_count();if(n<0)n=0;std::vector<jint> v(static_cast<size_t>(n));
     for(int i=0;i<n;++i){float s[3],d[2];int rec=0;nfs_radar_info(i,s,d,&rec);v[size_t(i)]=rec;}
     jintArray out=env->NewIntArray(n);if(out&&n)env->SetIntArrayRegion(out,0,n,v.data());return out;
 }
