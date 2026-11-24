@@ -16,10 +16,10 @@
  *    the garage gets 2 open slots a stage (garage.c). The career's lists (its races, shops, walls, sponsor) are made
  *    from the stage as the career loads, so the player saves and loads it again. In career free roam only;
  *  - every event: the career's available races (Career +0x71C8, 64 pointers) are made by 0x527D30 (thiscall Career:
- *    from the race table [0x8383E0] x [0x8383E4], 0x88 bytes: +8 hash, +0x34 kind (2 URL), +0x37 stage, +0x7F open;
- *    the stage's open races not won, then its URL races), as the career loads and after a race. While it is on, the
- *    other stages' races (1-5) not won are put in after the game's, the open ones and the URL ones, while there is
- *    room: the map shows them and their markers start them.
+ *    from the race table [0x8383E0] x [0x8383E4], 0x88 bytes: +8 hash, +0x34 kind (2 URL), +0x37 stage, +0x7F hidden;
+ *    a pick of the stage's races up to its caps, its hidden ones, its URL ones), as the career loads and after a
+ *    race. While it is on, the other stages' races (1-5) not won are put in after the game's while there is room: the
+ *    map shows them (not the hidden ones, unless hiddenraces.c has them out of hiding) and their markers start them.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -93,14 +93,14 @@ void nfs_cheats_ov_races(void) {
     if (!atomic_load(&s_events) || !solo() || rd(G_GAMEMODE) != 1u || career != G_CAREER) return;
     uint32_t races = rd(G_RACES), n = rd(G_NRACES), st = rd(career + K_STAGE);
     if (!races || n > 4096u || !ok(races, n * RACE_SZ) || !ok(career + K_AVAIL, 4u * AVAIL_N)) return;
-    unsigned added = 0, closed = 0, full = 0, had = 0;
+    unsigned added = 0, hidden = 0, full = 0, had = 0;
     for (uint32_t i = 0; i < AVAIL_N; i++) had += MEM32(career + K_AVAIL + 4u * i) != 0;
     for (int pass = 1; pass <= 5; pass++)            /* stage by stage, the career's own first */
         for (uint32_t i = 0; i < n; i++) {
             uint32_t r = races + i * RACE_SZ, h = MEM32(r + 8u);
             int stage = (int8_t)MEM8(r + 0x37u);
             if (stage != pass || (uint32_t)stage == st || !h || won(career, h)) continue;
-            if (!MEM8(r + 0x7fu) && MEM8(r + 0x34u) != 2u) { closed++; continue; }
+            hidden += MEM8(r + 0x7fu) != 0;
             uint32_t free_at = AVAIL_N; int there = 0;
             for (uint32_t k = 0; k < AVAIL_N; k++) {
                 uint32_t a = MEM32(career + K_AVAIL + 4u * k);
@@ -112,7 +112,7 @@ void nfs_cheats_ov_races(void) {
             MEM32(career + K_AVAIL + 4u * free_at) = r;
             added++;
         }
-    LOGI("Cheats: every stage's events: %u races added to the game's %u (stage %u; %u not open yet left out, %u no room)", added, had, st, closed, full);
+    LOGI("Cheats: every stage's events: %u races added to the game's %u (stage %u; %u of the others hidden, %u no room)", added, had, st, hidden, full);
 }
 
 /* 0x513C50 (thiscall Career (list): the car types the car lot may show) */

@@ -991,6 +991,8 @@ final class RacingControlsView extends View {
     }
     /** Ville ouverte (src/runtime/walls.c): no red walls in career free roam from stage 1. */
     boolean openCity() {return layouts.getBoolean("opencity",false);}
+    /** The career's hidden races on the map like the others (src/runtime/hiddenraces.c). */
+    boolean hiddenRaces() {return layouts.getBoolean("hiddenraces",false);}
     // ---- "Super puissance" (src/runtime/power.c): the car x1.5, x2 or x3 in career free roam ----
     private static final String[] POWER_LEVELS={"Désactivée","×1,5","×2","×3"};
     private boolean powerHeld;
@@ -1219,6 +1221,10 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Courses cachées sur la carte",hiddenRaces()?"Affichées":"Cachées",0,()->{
+            boolean on=!hiddenRaces();layouts.edit().putBoolean("hiddenraces",on).apply();
+            Toast.makeText(getContext(),(on?"Courses cachées sur la carte":"Courses cachées : comme le jeu")+" : après ta prochaine course, ou en rechargeant la carrière",Toast.LENGTH_LONG).show();
+        });
         menuRow(rows,"Ville ouverte (sans murs rouges)",openCity()?"Activée":"Désactivée",0,()->{
             boolean on=!openCity();layouts.edit().putBoolean("opencity",on).apply();
             Toast.makeText(getContext(),(on?"Ville ouverte":"Murs rouges de la carrière")+" : au prochain chargement de l'exploration (course, magasin, garage…)",Toast.LENGTH_LONG).show();

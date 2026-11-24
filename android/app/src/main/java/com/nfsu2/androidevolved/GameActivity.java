@@ -54,6 +54,7 @@ public final class GameActivity extends NativeActivity {
     private static native int[] nativeHapticsStatus();
     private static native int nativePower(int level);
     private static native void nativeOpenCity(boolean on);
+    private static native void nativeHiddenRaces(boolean on);
     private static native int nativeTeleport(int what);
     private static native int[] nativeRadarList();
     private static native String nativeCarList();
@@ -196,6 +197,7 @@ public final class GameActivity extends NativeActivity {
             touchControls.setHaptics(nativeHapticsStatus());
             touchControls.setPower(nativePower(touchControls.powerLevel()));
             nativeOpenCity(touchControls.openCity());
+            nativeHiddenRaces(touchControls.hiddenRaces());
             touchControls.postDelayed(this,40);
         }
     };

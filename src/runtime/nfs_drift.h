@@ -121,6 +121,9 @@ void nfs_garage_open_slots(unsigned n);     /* at least n of the 10 garage slots
 int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
 int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
 void nfs_maxperf_frame(void);               /* guest thread, after each Present */
+/* The career's hidden races on the map (hiddenraces.c). */
+void nfs_hiddenraces_enable(int on);        /* any thread */
+void nfs_hiddenraces_frame(void);           /* guest thread, after each Present */
 /* "Super puissance" in career free roam (power.c). */
 void nfs_power_frame(void);                 /* guest thread, after each Present */
 int nfs_power(int level);                   /* any thread: 0 off, 1 x1.5, 2 x2, 3 x3; 1 when it is held now */
