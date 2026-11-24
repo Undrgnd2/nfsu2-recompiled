@@ -59,3 +59,5 @@
 0x005F54A0  open city: a player car's collision groups named with stage 5 (walls.c)
 0x00513C50  cheats: the car lot's car types made with no locks while the cheat is on (cheats.c)
 0x00527D30  cheats: the career's available races, every stage's while the cheat is on (cheats.c)
+0x005A0B00  damage: CarCollisionBody::ApplyImpulse, the game's, then the impact on the car's mesh (damage.c)
+0x00637D70  damage: CarDamage::SetDamageToZero, the repair of the dents, then the game's (damage.c)

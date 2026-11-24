@@ -121,6 +121,13 @@ void nfs_garage_open_slots(unsigned n);     /* at least n of the 10 garage slots
 int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
 int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
 void nfs_maxperf_frame(void);               /* guest thread, after each Present */
+/* Crash damage on the cars (damage.c, damagecore.cpp: Crashing Foreign Cars' visual part). */
+void nfs_damage_enable(int on);             /* any thread */
+void nfs_damage_frame(void);                /* guest thread, after each Present */
+void nfs_damage_render(uint32_t cri, uint32_t args);   /* photo.c's wrap of 0x620AE0, before the game's */
+void nfs_damage_ov_impulse(void);           /* wraps 0x5A0B00 */
+void nfs_damage_ov_zero(void);              /* wraps 0x637D70 */
+int nfs_damage_hook(uint32_t va);           /* widescreen.c's recomp_hook: 1 when the site is damage.c's */
 /* The career's hidden races on the map (hiddenraces.c). */
 void nfs_hiddenraces_enable(int on);        /* any thread */
 void nfs_hiddenraces_frame(void);           /* guest thread, after each Present */

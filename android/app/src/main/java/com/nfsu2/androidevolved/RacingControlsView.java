@@ -993,6 +993,8 @@ final class RacingControlsView extends View {
     boolean openCity() {return layouts.getBoolean("opencity",false);}
     /** The career's hidden races on the map like the others (src/runtime/hiddenraces.c). */
     boolean hiddenRaces() {return layouts.getBoolean("hiddenraces",false);}
+    /** Crash damage on the cars (src/runtime/damage.c, Crashing Foreign Cars' visual part). */
+    boolean damageOn() {return layouts.getBoolean("damage",false);}
     // ---- "Super puissance" (src/runtime/power.c): the car x1.5, x2 or x3 in career free roam ----
     private static final String[] POWER_LEVELS={"Désactivée","×1,5","×2","×3"};
     private boolean powerHeld;
@@ -1221,6 +1223,10 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Dégâts visuels (Crashing Foreign Cars)",damageOn()?"Activés":"Désactivés",0,()->{
+            boolean on=!damageOn();layouts.edit().putBoolean("damage",on).apply();
+            Toast.makeText(getContext(),on?"Dégâts visuels activés : chocs, bosses, pièces arrachées":"Dégâts visuels désactivés : plus de nouveaux dégâts (réparation au garage ou au départ d'une course)",Toast.LENGTH_LONG).show();
+        });
         menuRow(rows,"Courses cachées sur la carte",hiddenRaces()?"Affichées":"Cachées",0,()->{
             boolean on=!hiddenRaces();layouts.edit().putBoolean("hiddenraces",on).apply();
             Toast.makeText(getContext(),(on?"Courses cachées sur la carte":"Courses cachées : comme le jeu")+" : après ta prochaine course, ou en rechargeant la carrière",Toast.LENGTH_LONG).show();

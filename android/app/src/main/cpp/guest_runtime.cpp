@@ -352,7 +352,7 @@ void d3dDispatch(){
     static std::array<std::chrono::nanoseconds,4096> methodTime{};
     if(timed){auto spent=std::chrono::steady_clock::now()-bridgeStart;bridgeTime+=token==0x7e002110u?spent:spent*64;presentTime+=token==0x7e002110u?spent:std::chrono::nanoseconds{};
         methodTime[((token-0x7e000000u)/16u)&4095u]+=token==0x7e002110u?spent:spent*64;}
-    if(token==0x7e002110u){nfs_widescreen_apply_frame_rate();nfs_drift_frame();nfs_ghost_frame();nfs_photo_frame();nfs_save_frame();nfs_cam_frame();nfs_lights_frame();nfs_showoff_frame();nfs_sponsors_frame();nfs_engage_frame();nfs_walls_frame();nfs_carspot_frame();nfs_carshadow_frame();nfs_cheats_frame();nfs_radars_frame();nfs_teleport_frame();nfs_cruise_frame();nfs_haptics_frame();nfs_power_frame();nfs_maxperf_frame();nfs_hiddenraces_frame();presentCount.fetch_add(1);lastPresentMs=steadyMs();startStallWatch();}
+    if(token==0x7e002110u){nfs_widescreen_apply_frame_rate();nfs_drift_frame();nfs_ghost_frame();nfs_photo_frame();nfs_save_frame();nfs_cam_frame();nfs_lights_frame();nfs_showoff_frame();nfs_sponsors_frame();nfs_engage_frame();nfs_walls_frame();nfs_carspot_frame();nfs_carshadow_frame();nfs_cheats_frame();nfs_radars_frame();nfs_teleport_frame();nfs_cruise_frame();nfs_haptics_frame();nfs_power_frame();nfs_maxperf_frame();nfs_hiddenraces_frame();nfs_damage_frame();presentCount.fetch_add(1);lastPresentMs=steadyMs();startStallWatch();}
     if(token==0x7e002110u&&result==0){
         static FramePacer pacer;
         auto now=std::chrono::steady_clock::now();
@@ -593,6 +593,8 @@ void loadImage(const char* path) {
         imageBase,imageSize,entry,imports.size(),recomp_dispatch_count);
     unlockRegionalCars();
 }
+static double lastCallSt0;   // st(0) as a guest call left it (its float result; the lifted x87 stack: g_st[g_fp_top-1] its top), before the caller's state is back
+extern "C" double nfs_guest_last_st0(void){return lastCallSt0;}
 uint32_t callGuest(uint32_t va, const uint32_t* args, size_t count, uint32_t cleanup, bool threadStart) {
     State saved; saved.save();
     try {
@@ -601,7 +603,7 @@ uint32_t callGuest(uint32_t va, const uint32_t* args, size_t count, uint32_t cle
         if (!fn) throw GuestStop("No guest function at " + hex(va));
         for (size_t i=count;i--;) { g_esp-=4; write32(g_esp,args[i]); }
         g_esp-=4; write32(g_esp,RECOMP_RETADDR);
-        fn(); g_esp+=cleanup;
+        fn(); g_esp+=cleanup; lastCallSt0=g_fp_top>0&&g_fp_top<=8?g_st[g_fp_top-1]:0.0;
         if (g_esp!=saved.esp&&!(threadStart&&g_esp+4u*uint32_t(count)==saved.esp)) throw GuestStop("Guest call stack imbalance at " + hex(va));
         uint32_t result=g_eax; saved.load(); return result;
     } catch (...) { saved.load(); throw; }
