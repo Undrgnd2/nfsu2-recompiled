@@ -225,6 +225,16 @@ inline uint8_t* G(uint32_t a) { return a ? dmg_base() + a : nullptr; }
 inline uint32_t A(const void* p) { return p ? (uint32_t)((const uint8_t*)p - dmg_base()) : 0u; }
 inline uint32_t R32(uint32_t a) { return *(volatile uint32_t*)(dmg_base() + a); }
 
+// The render info's model table (eModel* [63 slots][2 rows][4 LODs]): guest addresses, read as host pointers.
+struct ModelTable {
+    const uint32_t* t;
+    uint8_t* operator[](int i) const { return G(t[i]); }
+    bool operator!() const { return t == nullptr; }
+};
+inline ModelTable Models(const void* renderInfo) {
+    return ModelTable{renderInfo ? (const uint32_t*)((const uint8_t*)renderInfo + kCriModels) : nullptr};
+}
+
 uint32_t Frame() { return R32(kFrameCounter); }
 uint32_t WorldTime() { return R32(kWorldTimer); }
 uint32_t Device() { return R32(kDevice); }
@@ -855,7 +865,7 @@ void Retire(Clone* c, bool restore) {
 // Calls f(model, slot, row, lod) once per distinct body-part model of the car.
 template <typename F>
 void ForEachPartModel(void* renderInfo, F f) {
-    uint8_t** table = (uint8_t**)((uint8_t*)renderInfo + kCriModels);
+    const ModelTable table = Models(renderInfo);
     uint8_t* done[sizeof(kDentSlots) / sizeof(kDentSlots[0]) * 8];
     int doneCount = 0;
     for (int slot : kDentSlots)
@@ -1036,7 +1046,7 @@ void Prewarm(void* renderInfo) {
         PrewarmModel(model);
     });
     // The parts drawn per marker are refined at LOD A (see EnsureClones).
-    uint8_t** table = (uint8_t**)((uint8_t*)renderInfo + kCriModels);
+    const ModelTable table = Models(renderInfo);
     for (int slot : {kSlotExhaust, kSlotPlate})
         for (int row = 0; row < 2; row++) PrewarmModel(table[slot * 8 + row * 4]);
 }
@@ -1307,7 +1317,7 @@ bool SnapToSurface(void* renderInfo, Dent& dent, float width) {
 
 // Box of a part's undamaged LOD A shape, in car space (from its clone, which handles marker parts).
 bool PartBox(void* renderInfo, int slot, int row, Vec3& mn, Vec3& mx) {
-    uint8_t* model = ((uint8_t**)((uint8_t*)renderInfo + kCriModels))[slot * 8 + row * 4];
+    uint8_t* model = Models(renderInfo)[slot * 8 + row * 4];
     uint8_t* solid = model ? (uint8_t*)At<uint8_t*>(model, kModelSolid) : nullptr;
     if (!solid) return false;
     auto it = g_clones.find(CloneKey(model, -1));
@@ -1438,7 +1448,7 @@ void EnsureClones(void* renderInfo, bool mayRefine = true) {
     });
     auto drawn = g_markerDraws.find(renderInfo);
     if (drawn == g_markerDraws.end()) return;
-    uint8_t** table = (uint8_t**)((uint8_t*)renderInfo + kCriModels);
+    const ModelTable table = Models(renderInfo);
     for (const MarkerDrawn& d : drawn->second.draws) {
         if (table[d.slot * 8 + d.row * 4] != d.model) continue;   // learnt before the parts were rebuilt
         auto it = g_clones.find(CloneKey(d.model, d.index));
@@ -1477,7 +1487,7 @@ bool CloneSome(void* renderInfo, int& at, More more) {
     if (stop) return false;
     auto drawn = g_markerDraws.find(renderInfo);
     if (drawn == g_markerDraws.end()) return true;
-    uint8_t** table = (uint8_t**)((uint8_t*)renderInfo + kCriModels);
+    const ModelTable table = Models(renderInfo);
     for (const MarkerDrawn& d : drawn->second.draws) {
         const int me = i++;
         if (me < at) continue;
@@ -2937,7 +2947,7 @@ extern "C" void dmg_body_draw(uint32_t modelAddr, uint32_t l2w) {
         auto it = g_clones.find(CloneKey(model, -1));
         if (it != g_clones.end() && it->second->renderInfo == g_drawCar) it->second->drawnAt = Frame();
     }
-    uint8_t** table = (uint8_t**)((uint8_t*)g_drawCar + kCriModels);
+    const ModelTable table = Models(g_drawCar);
     for (int lod = 0; lod < 4 && !g_bodyKnown; lod++)
         if (model == table[0 * 8 + lod] || model == table[5 * 8 + lod]) {   // BASE, BODY: drawn with Body
             memcpy(g_body, G(l2w), sizeof(g_body));
@@ -2950,7 +2960,7 @@ extern "C" void dmg_marker_pre(int slot, uint32_t modelAddr, uint32_t l2wAddr) {
     g_swapModel = nullptr;
     uint8_t* model = G(modelAddr);
     const float* l2w = (const float*)G(l2wAddr);
-    uint8_t** table = g_drawCar ? (uint8_t**)((uint8_t*)g_drawCar + kCriModels) : nullptr;
+    const ModelTable table = Models(g_drawCar);
     const int row = !table ? -1 : model == table[slot * 8] ? 0 : model == table[slot * 8 + 4] ? 1 : -1;
     if (!g_bodyKnown || !modelAddr || !l2wAddr || row < 0) return;
     const int index = NextDrawIndex(model);
