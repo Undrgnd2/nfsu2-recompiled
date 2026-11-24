@@ -301,6 +301,8 @@ uint32_t nfs_garage_slot_car(unsigned i) {
     return ok(r, REC_SZ) && MEM8(r + R_OWNED) ? r : 0;
 }
 uint32_t nfs_garage_driven(void) { return garage_find(G_FECARS, MEM32(G_CAREER + K_CAR)); }
+/* cheats.c's stage jump: at least n of the 10 slots open (2 a stage, as the stages' rewards open them) */
+void nfs_garage_open_slots(unsigned n) { if (g_blk) open_to(G_FECARS, n); }
 
 /* --- new careers, stages --- */
 /* (guest calls after the original's: its eax and edx kept, they are scratch registers to the calls) */

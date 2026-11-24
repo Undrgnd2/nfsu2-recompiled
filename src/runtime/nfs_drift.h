@@ -116,6 +116,7 @@ void nfs_teleport_frame(void);              /* guest thread, after each Present 
 /* The solo cheats' "Performances au maximum" (maxperf.c; garage.c's slots). */
 uint32_t nfs_garage_slot_car(unsigned i);   /* the career's car of slot i (0-9), 0 none */
 uint32_t nfs_garage_driven(void);           /* the career's car driven */
+void nfs_garage_open_slots(unsigned n);     /* at least n of the 10 garage slots open */
 int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
 int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
 void nfs_maxperf_frame(void);               /* guest thread, after each Present */

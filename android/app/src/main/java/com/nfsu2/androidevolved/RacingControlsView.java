@@ -882,6 +882,7 @@ final class RacingControlsView extends View {
             items.add("Toutes les pièces débloquées : "+(parts?"Oui":"Non"));
             items.add("Performances au maximum…");
             items.add("Toutes les voitures à la concession : "+(layouts.getBoolean("cheats.cars",false)?"Oui":"Non"));
+            items.add("Passer à l'étape…");
         }
         new AlertDialog.Builder(getContext()).setTitle("Triches (solo)")
             .setItems(items.toArray(new String[0]),(d,which)->{
@@ -897,8 +898,25 @@ final class RacingControlsView extends View {
                     case 6: showMaxPerf();break;
                     case 7: {boolean cars=!layouts.getBoolean("cheats.cars",false);layouts.edit().putBoolean("cheats.cars",cars).apply();sendCheats();
                         Toast.makeText(getContext(),cars?"Toutes les voitures à la concession dès l'étape 1":"Concession : comme le jeu la débloque",Toast.LENGTH_SHORT).show();break;}
+                    case 8: showStageJump();break;
                 }
             }).setNegativeButton("Fermer",null).show();
+    }
+    /** Passer à l'étape (src/runtime/cheats.c): the career straight to a later stage, asked twice. */
+    private void showStageJump() {
+        int now=photo.cheat(7,0);
+        if(now<1){Toast.makeText(getContext(),now==0?"Pas pendant le prologue : achète d'abord ta première voiture":"Seulement en carrière, hors LAN",Toast.LENGTH_SHORT).show();return;}
+        if(now>=5){Toast.makeText(getContext(),"Ta carrière est déjà à l'étape "+Math.min(now,5),Toast.LENGTH_SHORT).show();return;}
+        String[] names=new String[5-now];
+        for(int i=0;i<names.length;++i)names[i]="Étape "+(now+1+i);
+        new AlertDialog.Builder(getContext()).setTitle("Passer à l'étape (tu es à l'étape "+now+")")
+            .setItems(names,(d,which)->{
+                int to=now+1+which;
+                new AlertDialog.Builder(getContext()).setTitle("Passer à l'étape "+to+" ?")
+                    .setMessage("Ta progression change vraiment : les étapes "+now+" à "+(to-1)+" sont marquées terminées. Fais une copie de ta sauvegarde avant (launcher → Profils → Télécharger une copie).\n\nEnsuite : Pause → Sauvegarder, puis quitte au menu principal et recharge ta carrière.")
+                    .setPositiveButton("Passer à l'étape "+to,(d2,w2)->cheatToast(photo.cheat(6,to)!=0,"Étape "+to+" : sauvegarde, puis recharge ta carrière","Seulement en exploration carrière, hors LAN"))
+                    .setNegativeButton("Annuler",null).show();
+            }).setNegativeButton("Annuler",null).show();
     }
     /** Performances au maximum (src/runtime/maxperf.c): every performance package, up to the last level, in the
      *  career cars picked: all of them, or one. */

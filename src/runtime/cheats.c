@@ -9,7 +9,12 @@
  *    to every part while it is on (nfs_cheat_parts);
  *  - the car lot: its list of the career's car types (0x513C50, thiscall Career (list): from all 46 types, each of
  *    the table [0x838438] (count [0x83843C], 12 bytes: the type's hash, its unlock's key) whose event is not won yet,
- *    0x500B80, taken off) is made with that table's count 0 while it is on: every car the car lot sells, from stage 1.
+ *    0x500B80, taken off) is made with that table's count 0 while it is on: every car the car lot sells, from stage 1;
+ *  - the stage: Career +0x7AF8 (1-5; 0 the prologue). The game ends a stage when its record (Career +0x72D8, 0x104
+ *    bytes a stage: +0xFC done, +0x100 its settings, +0x28 their final event) has its final event won (0x532C60:
+ *    +0xFC set, then 0x528320 the stage + 1). A jump to stage n marks the stages before it done and sets the stage;
+ *    the garage gets 2 open slots a stage (garage.c). The career's lists (its races, shops, walls, sponsor) are made
+ *    from the stage as the career loads, so the player saves and loads it again. In career free roam only.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -31,7 +36,11 @@ int nfs_guest_readable(uint32_t va, uint32_t bytes);
 #define BANK_MAX    999999999u
 
 static atomic_uint s_money;          /* money asked for, not given yet */
-static atomic_int s_refill, s_nos_full, s_parts, s_cars;
+static atomic_int s_refill, s_nos_full, s_parts, s_cars, s_stage;
+#define K_STAGE     0x7af8u
+#define K_STAGE_REC 0x72d8u
+#define STAGE_REC   0x104u
+#define STAGE_DONE  0xfcu
 
 static int ok(uint32_t va, uint32_t n) { return va >= 0x10000u && nfs_guest_readable(va, n); }
 static uint32_t rd(uint32_t va) { return ok(va, 4) ? MEM32(va) : 0; }
@@ -46,6 +55,12 @@ int nfs_cheat(int cmd, int arg) {
     case 3: atomic_store(&s_nos_full, arg != 0); return 1;
     case 4: atomic_store(&s_parts, arg != 0); LOGI("Cheats: every part unlocked %s", arg ? "on" : "off"); return 1;
     case 5: atomic_store(&s_cars, arg != 0); LOGI("Cheats: every car at the car lot %s", arg ? "on" : "off"); return 1;
+    case 6: {   /* the career to stage arg (2-5): 0 not now (not career free roam, the prologue, a stage not ahead) */
+        uint32_t st = rd(G_CAREER + K_STAGE);
+        if (!solo() || rd(G_GAMEMODE) != 1u || rd(G_FLOW) != 6u || st < 1u || arg < 2 || arg > 5 || (uint32_t)arg <= st) return 0;
+        atomic_store(&s_stage, arg); return 1;
+    }
+    case 7: return solo() && rd(G_GAMEMODE) == 1u ? (int)rd(G_CAREER + K_STAGE) : -1;   /* the career's stage */
     }
     return 0;
 }
@@ -83,6 +98,14 @@ void nfs_cheats_frame(void) {
         LOGI("Cheats: the bank %u -> %u", b, to);
     }
     if (rd(G_FLOW) != 6u) return;
+    int to = atomic_exchange(&s_stage, 0);
+    uint32_t st = rd(G_CAREER + K_STAGE);
+    if (to && rd(G_GAMEMODE) == 1u && st >= 1u && (uint32_t)to > st && to <= 5) {
+        for (uint32_t s = st; s < (uint32_t)to; s++) MEM8(G_CAREER + K_STAGE_REC + s * STAGE_REC + STAGE_DONE) = 1;
+        MEM32(G_CAREER + K_STAGE) = (uint32_t)to;
+        nfs_garage_open_slots(2u * (uint32_t)to);
+        LOGI("Cheats: the career at stage %d (was %u): stages %u-%d marked done, %d garage slots open", to, st, st, to - 1, 2 * to);
+    }
     if (atomic_exchange(&s_refill, 0)) { nos_fill(); LOGI("Cheats: nitrous refilled"); }
     if (atomic_load(&s_nos_full)) nos_fill();
 }
