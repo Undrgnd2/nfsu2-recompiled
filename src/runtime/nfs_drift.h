@@ -121,6 +121,12 @@ void nfs_garage_open_slots(unsigned n);     /* at least n of the 10 garage slots
 int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
 int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
 void nfs_maxperf_frame(void);               /* guest thread, after each Present */
+/* The player's own license plate (plates.c, plate_image.c). */
+void nfs_plates_set(const char *text);      /* any thread: up to 8 capitals and digits, "" the game's plate */
+void nfs_plates_frame(void);                /* guest thread, after each Present */
+uint32_t nfs_plates_begin(uint32_t ri);     /* photo.c's car wraps: the car drawn now */
+void nfs_plates_end(uint32_t before);
+void nfs_plates_ov_model(void);             /* wraps 0x5C5930 */
 /* Crash damage on the cars (damage.c, damagecore.cpp: Crashing Foreign Cars' visual part). */
 void nfs_damage_enable(int on);             /* any thread */
 void nfs_damage_frame(void);                /* guest thread, after each Present */

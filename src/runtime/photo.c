@@ -456,11 +456,19 @@ void nfs_photo_ov_car(void) {                /* (showoff.c: the parts it opens, 
     if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; }
     nfs_carpaint_draw(g_ecx);                    /* (carpaint.c: its tips, calipers and rims, its own paint) */
     nfs_damage_render(g_ecx, g_esp + 4u);        /* (damage.c: its dents, bent wheels) */
+    uint32_t plate = nfs_plates_begin(g_ecx);    /* (plates.c: its own license plate) */
     uint32_t keep[6]; int so = nfs_showoff_put(g_ecx, 1, keep);
     sub_00620AE0_orig();
     if (so) nfs_showoff_take(keep);
+    nfs_plates_end(plate);
 }
-void nfs_photo_ov_car_parts(void)  { if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; } nfs_carpaint_draw(g_ecx); sub_006162E0_orig(); }
+void nfs_photo_ov_car_parts(void)  {
+    if (photo_hides(g_ecx)) { g_esp += 4 + 0x30; return; }
+    nfs_carpaint_draw(g_ecx);
+    uint32_t plate = nfs_plates_begin(g_ecx);
+    sub_006162E0_orig();
+    nfs_plates_end(plate);
+}
 void nfs_photo_ov_car_lights(void) {
     if (photo_hides(g_ecx)) { g_esp += 4 + 0x0c; return; }
     uint32_t keep[6]; int so = nfs_showoff_put(g_ecx, 0, keep);

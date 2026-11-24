@@ -995,6 +995,26 @@ final class RacingControlsView extends View {
     boolean hiddenRaces() {return layouts.getBoolean("hiddenraces",false);}
     /** Crash damage on the cars (src/runtime/damage.c, Crashing Foreign Cars' visual part). */
     boolean damageOn() {return layouts.getBoolean("damage",false);}
+    /** The car's own license plate (src/runtime/plates.c): up to 8 capitals and digits, "" the game's. */
+    String plateText() {return layouts.getString("plate","");}
+    private void showPlate() {
+        final android.widget.EditText edit=new android.widget.EditText(getContext());
+        edit.setSingleLine(true);edit.setText(plateText());edit.setHint("UNDRGND2");
+        edit.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS|android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        edit.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(8),(src,start,end,dst,ds,de)->{
+            StringBuilder b=new StringBuilder();
+            for(int i=start;i<end;++i){char c=Character.toUpperCase(src.charAt(i));if((c>='A'&&c<='Z')||(c>='0'&&c<='9'))b.append(c);}
+            return b.toString().equals(src.subSequence(start,end).toString())?null:b.toString();
+        }});
+        android.widget.FrameLayout box=new android.widget.FrameLayout(getContext());box.setPadding(px(22),px(8),px(22),0);box.addView(edit);
+        new AlertDialog.Builder(getContext()).setTitle("Plaque d'immatriculation")
+            .setMessage("Jusqu'à 8 lettres et chiffres. Vide : la plaque du jeu.")
+            .setView(box)
+            .setPositiveButton("OK",(d,w)->{String t=edit.getText().toString().toUpperCase(java.util.Locale.ROOT);layouts.edit().putString("plate",t).apply();
+                Toast.makeText(getContext(),t.isEmpty()?"Plaque : celle du jeu":"Plaque : "+t,Toast.LENGTH_SHORT).show();})
+            .setNeutralButton("Plaque du jeu",(d,w)->{layouts.edit().putString("plate","").apply();Toast.makeText(getContext(),"Plaque : celle du jeu",Toast.LENGTH_SHORT).show();})
+            .setNegativeButton("Annuler",null).show();
+    }
     // ---- "Super puissance" (src/runtime/power.c): the car x1.5, x2 or x3 in career free roam ----
     private static final String[] POWER_LEVELS={"Désactivée","×1,5","×2","×3"};
     private boolean powerHeld;
@@ -1223,6 +1243,7 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Plaque d'immatriculation",plateText().isEmpty()?"Celle du jeu":plateText(),0,this::showPlate);
         menuRow(rows,"Dégâts visuels (Crashing Foreign Cars)",damageOn()?"Activés":"Désactivés",0,()->{
             boolean on=!damageOn();layouts.edit().putBoolean("damage",on).apply();
             Toast.makeText(getContext(),on?"Dégâts visuels activés : chocs, bosses, pièces arrachées":"Dégâts visuels désactivés : plus de nouveaux dégâts (réparation au garage ou au départ d'une course)",Toast.LENGTH_LONG).show();

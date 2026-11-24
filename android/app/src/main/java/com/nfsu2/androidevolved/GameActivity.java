@@ -56,6 +56,8 @@ public final class GameActivity extends NativeActivity {
     private static native void nativeOpenCity(boolean on);
     private static native void nativeHiddenRaces(boolean on);
     private static native void nativeDamage(boolean on);
+    private static native void nativePlate(String text);
+    private String plateSent;
     private static native int nativeTeleport(int what);
     private static native int[] nativeRadarList();
     private static native String nativeCarList();
@@ -200,6 +202,8 @@ public final class GameActivity extends NativeActivity {
             nativeOpenCity(touchControls.openCity());
             nativeHiddenRaces(touchControls.hiddenRaces());
             nativeDamage(touchControls.damageOn());
+            String plate=touchControls.plateText();
+            if(!plate.equals(plateSent)){nativePlate(plate);plateSent=plate;}
             touchControls.postDelayed(this,40);
         }
     };
