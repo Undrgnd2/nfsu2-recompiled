@@ -319,6 +319,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
     if(scan==0xf4){nfs_lights_key(down==JNI_TRUE);return;}
     // 0xF5: the SHOWOFF button: the parked car's hood, trunk, doors opened step by step (src/runtime/showoff.c).
     if(scan==0xf5){if(down==JNI_TRUE)nfs_showoff_press();return;}
+    // 0xF6..0xF8: the cruise control's button, − and + (src/runtime/cruise.c).
+    if(scan>=0xf6&&scan<=0xf8){if(down==JNI_TRUE)nfs_cruise_key(scan);return;}
     setGuestKey(unsigned(scan),down==JNI_TRUE);
     __android_log_print(ANDROID_LOG_INFO,"NFSU2","Android touch DIK=%02x down=%d",unsigned(scan),int(down));
 }
@@ -330,6 +332,10 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeGhostStatus(JNIEnv* env,jclass){
     int status[8];nfs_ghost_status(status);status[4]=nfs_lights_state();status[5]=nfs_showoff_status();status[6]=nfs_engage_status();status[7]=nfs_teleport_status();
     jintArray out=env->NewIntArray(8);if(out)env->SetIntArrayRegion(out,0,8,reinterpret_cast<const jint*>(status));return out;
+}
+extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeCruiseStatus(JNIEnv* env,jclass){
+    int status[5];nfs_cruise_status(status);
+    jintArray out=env->NewIntArray(5);if(out)env->SetIntArrayRegion(out,0,5,reinterpret_cast<const jint*>(status));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePhotoShot(JNIEnv*,jclass){requestD3D9Photo();}
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRadarStatus(JNIEnv* env,jclass,jboolean on){

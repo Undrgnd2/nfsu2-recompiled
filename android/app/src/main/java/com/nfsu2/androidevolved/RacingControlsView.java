@@ -167,6 +167,9 @@ final class RacingControlsView extends View {
             float lancerY=h-B-(layouts.getBoolean("gears",false)?(stick?132:112)+56:(stick?120:104))-8-48;
             addU(L,lancerY,110,48,PILL,"t:Lancer",0x1c,-1,0);controls.get(controls.size()-1).hidden=!engageOn();
             addU(w/2-80,T+56,160,48,PILL,"t:Téléporter",TELEPORT,-1,0);controls.get(controls.size()-1).hidden=!mapOpen();
+            // Régulateur de vitesse: over N₂O; − and + either side of its speed, bottom middle, while it holds (cruise.c)
+            addU(w-R-12-60+2,h-B-160-60-8-56,56,56,ROUND,"cruise",0xF6,-1,0);
+            addCruiseSteps(w,h-B);
         } else {
             final float k=52;
             add(L,T,48,"settings",EDIT);
@@ -469,6 +472,8 @@ final class RacingControlsView extends View {
             add(184,16,46,"reset",0x13);  // Reiniciar coche: R
             add(240,16,46,"drift",0xF1);  // Mode drift en exploration (drift.c), aucune touche du jeu
             add(296,16,46,"ghost",0xF2);  // Mode fantôme en exploration (ghost.c), aucune touche du jeu
+            add(352,16,46,"cruise",0xF6); // Régulateur de vitesse en exploration (cruise.c)
+            addCruiseSteps(w,bottom);
             if(style.equals("classic")) {
                 add(20,bottom-92,92,"left",0xcb);
                 add(124,bottom-92,92,"right",0xcd);
@@ -531,6 +536,7 @@ final class RacingControlsView extends View {
         drawShowoff(canvas);
         drawPerf(canvas);
         drawRadars(canvas);
+        drawCruise(canvas);
         if(editing) {
             float w=getWidth()/scale;
             float tb=toolbarTop();
@@ -548,7 +554,7 @@ final class RacingControlsView extends View {
     /** undrgnd2.eu's look: see-through black, white words, lime when pressed or lit. */
     private void drawUndrgnd(Canvas canvas,Control c) {
         boolean on=c.held>0, picked=editing&&c==selected;
-        boolean lit=(c.scan==0xF5&&ghost.length>5&&(ghost[5]&7)!=0)||(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
+        boolean lit=(c.scan==0xF6&&cruise[0]!=0)||(c.scan==0xF5&&ghost.length>5&&(ghost[5]&7)!=0)||(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
         boolean small=c.scan<0||c.shape==ROUND&&c.group==0&&c.area.top<40;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int bg=on?0xB8000000:racing&&c.scan>=0?0x33000000:0x66000000;
@@ -687,6 +693,14 @@ final class RacingControlsView extends View {
                 canvas.drawPath(path,line);
                 canvas.drawLine(cx+s*.45f,base-s*.4f,cx+s*.85f,base-s*1.25f,line);
                 canvas.drawCircle(cx-s*.55f,base+s*.15f,s*.2f,fill);canvas.drawCircle(cx+s*.55f,base+s*.15f,s*.2f,fill);
+                break;
+            }
+            case "cruise": {   // a speedometer: its dial, the needle held, a lock under it
+                canvas.drawArc(cx-s,cy-s*.85f,cx+s,cy+s*1.15f,150,240,false,line);
+                for(int i=0;i<5;++i){double a=Math.toRadians(150+i*60);float ca=(float)Math.cos(a),sa=(float)Math.sin(a);
+                    canvas.drawLine(cx+ca*s*.72f,cy+s*.15f+sa*s*.72f,cx+ca*s*.9f,cy+s*.15f+sa*s*.9f,line);}
+                canvas.drawLine(cx,cy+s*.15f,cx+s*.45f,cy-s*.4f,line);
+                canvas.drawCircle(cx,cy+s*.15f,s*.14f,fill);
                 break;
             }
             case "up": chevron(canvas,cx,cy,s,true);break;
@@ -928,6 +942,58 @@ final class RacingControlsView extends View {
         glyph(canvas,a,cx,yy+15,20,false,0xFFFFFFFF);
         glyph(canvas,b,cx,yy+38,14,false,rec?0xFFFFFFFF:0xFF3FC1F5);
     }
+    // ---- the cruise control (src/runtime/cruise.c) ----
+    private int[] cruise=new int[5];private int cruiseSeen=-1;private long cruiseUntil;private String cruiseText="";
+    boolean cruiseShown() {return layouts.getBoolean("cruise",true);}
+    private void addCruiseSteps(float w,float bottom) {
+        addU(w/2-140,bottom-48,52,48,PILL,"t:−",0xF7,-1,0);controls.get(controls.size()-1).hidden=cruise[0]==0;
+        addU(w/2+88,bottom-48,52,48,PILL,"t:+",0xF8,-1,0);controls.get(controls.size()-1).hidden=cruise[0]==0;
+        for(Control c:controls)if(c.scan==0xF6)c.hidden=!cruiseShown()||cruise[4]==0;
+    }
+    void setCruise(int[] s) {
+        if(s==null||s.length<5)return;
+        boolean changed=!java.util.Arrays.equals(s,cruise);
+        if(cruiseSeen>=0&&s[3]!=cruiseSeen) {
+            String t=null;
+            switch(s[2]) {
+                case 1:t="Régulateur : "+s[1]+" km/h";break;
+                case 2:t="Régulateur coupé (frein)";break;
+                case 3:t="Régulateur coupé (choc)";break;
+                case 4:t="Régulateur coupé";break;
+                case 5:t="Roule à au moins 20 km/h pour l'activer";break;
+                case 6:t="Régulateur désactivé";break;
+                case 7:t="Régulateur : seulement en exploration libre";break;
+            }
+            if(t!=null){cruiseText=t;cruiseUntil=android.os.SystemClock.uptimeMillis()+1800;}
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        cruiseSeen=s[3];
+        long now=android.os.SystemClock.uptimeMillis();
+        if(cruiseUntil!=0&&now>cruiseUntil){cruiseUntil=0;changed=true;}
+        cruise=s;
+        for(Control c:controls) {
+            boolean hide=c.scan==0xF6?!cruiseShown()||s[4]==0:(c.scan==0xF7||c.scan==0xF8)?s[0]==0:c.hidden;
+            if(hide!=c.hidden){c.hidden=hide;if(hide&&c.held>0){c.held=1;release(c);}changed=true;}
+        }
+        if(changed&&racing)invalidate();
+    }
+    private void drawCruise(Canvas canvas) {
+        if(!racing||editing||photoOn)return;
+        float w=getWidth()/scale,h=getHeight()/scale,cx=w/2;
+        float bottom=style.equals("undrgnd2")?h-12:h-20;
+        if(cruise[0]!=0) {
+            float y=bottom-48;
+            fill.setColor(0xB00A1628);canvas.drawRoundRect(cx-80,y,cx+80,y+48,10,10,fill);
+            line.setColor(0x993FC1F5);line.setStrokeWidth(1.5f);canvas.drawRoundRect(cx-80,y,cx+80,y+48,10,10,line);
+            glyph(canvas,"RÉGULATEUR",cx,y+14,12,false,0xFF3FC1F5);
+            glyph(canvas,cruise[1]+" km/h",cx,y+33,20,false,0xFFFFFFFF);
+        }
+        if(cruiseUntil==0)return;
+        float y=bottom-(cruise[0]!=0?48+8:0)-36;
+        text.setTextSize(15);float tw=text.measureText(cruiseText)/2+14;
+        fill.setColor(0xB00A1628);canvas.drawRoundRect(cx-tw,y,cx+tw,y+30,8,8,fill);
+        glyph(canvas,cruiseText,cx,y+15,15,false,0xFFFFFFFF);
+    }
     // ---- the world map's Téléporter (src/runtime/teleport.c) ----
     private boolean mapOpen() {return ghost.length>7&&ghost[7]!=0;}
     private static final String[] TELEPORT_NAMES={"Concession","Atelier style","Atelier habitacle","Atelier peinture","Atelier performances","Garage","Radars…"};
@@ -1064,6 +1130,7 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Régulateur de vitesse",cruiseShown()?"Bouton affiché":"Bouton masqué",0,()->{layouts.edit().putBoolean("cruise",!cruiseShown()).apply();layoutControls();});
         menuRow(rows,"Radars (vitesse de pointe)",radarsShown()?"Affichés":"Masqués",0,()->{layouts.edit().putBoolean("radars",!radarsShown()).apply();invalidate();});
         menuRow(rows,"Triches (solo)",cheatsOn()?"Activées":"Désactivées",0,this::showCheats);
         menuRow(rows,"Compteur FPS / batterie",perfShown()?"Affiché":"Masqué",0,()->{layouts.edit().putBoolean("perf",!perfShown()).apply();if(!perfShown())perfText="";invalidate();});

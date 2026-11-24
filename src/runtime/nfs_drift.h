@@ -112,6 +112,11 @@ int nfs_radar_info(int i, float *start, float *dir, int *record);
 int nfs_teleport_status(void);              /* 1 the world map is open in career free roam */
 int nfs_teleport(int what);                 /* any thread: 1..6 a shop's kind, 100 + i radar i */
 void nfs_teleport_frame(void);              /* guest thread, after each Present */                /* guest thread, after each Present */
+/* A cruise control in career free roam (cruise.c). */
+void nfs_cruise_ov_input(void);             /* wraps 0x407A30, the player's controls into the car */
+void nfs_cruise_frame(void);                /* guest thread, after each Present */
+void nfs_cruise_key(int scan);              /* any thread: 0xF6 on or off, 0xF7 slower, 0xF8 faster */
+void nfs_cruise_status(int out[5]);         /* on, the speed held (km/h), last event (1 on, 2 brake, 3 crash, 4 left, 5 too slow, 6 off, 7 not here, 8 speed set), its number, the button offered */
 void nfs_radars_enable(int on);             /* the touch menu's switch (any thread) */
 void nfs_radars_status(int out[13]);        /* count, nearest, its distance (m), its direction (degrees), last radar, speed, record, new (1, 2 first), pass number; marker on screen, x, y (1/10000), distance */                /* guest thread, after each Present */         /* uniques.c: wraps 0x515500 */
 void nfs_carshadow_frame(void);             /* carshadow.c: the cars' shadow lift (once) */
