@@ -354,6 +354,10 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
     for(int i=0;i<n;++i){float s[3],d[2];int rec=0;nfs_radar_info(i,s,d,&rec);v[size_t(i)]=rec;}
     jintArray out=env->NewIntArray(n);if(out&&n)env->SetIntArrayRegion(out,0,n,v.data());return out;
 }
+extern "C" JNIEXPORT jstring JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeCarList(JNIEnv* env,jclass){
+    char buf[1200];nfs_maxperf_list(buf,int(sizeof buf));return env->NewStringUTF(buf);
+}
+extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeMaxPerf(JNIEnv*,jclass,jint slot){return nfs_maxperf(slot);}
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeCheat(JNIEnv*,jclass,jint cmd,jint arg){return nfs_cheat(cmd,arg);}
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeFrameCount(JNIEnv*,jclass){return jint(guestPresentCount());}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeTone(JNIEnv*,jclass,jfloat exposure,jfloat white){setD3D9Tone(exposure,white);}

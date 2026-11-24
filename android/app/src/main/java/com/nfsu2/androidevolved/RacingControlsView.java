@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -879,6 +879,7 @@ final class RacingControlsView extends View {
             items.add("+100 000 $");items.add("+1 000 000 $");items.add("Recharger le N₂O");
             items.add("N₂O toujours plein : "+(nos?"Oui":"Non"));
             items.add("Toutes les pièces débloquées : "+(parts?"Oui":"Non"));
+            items.add("Performances au maximum…");
         }
         new AlertDialog.Builder(getContext()).setTitle("Triches (solo)")
             .setItems(items.toArray(new String[0]),(d,which)->{
@@ -891,8 +892,27 @@ final class RacingControlsView extends View {
                     case 4: layouts.edit().putBoolean("cheats.nos",!nos).apply();sendCheats();break;
                     case 5: layouts.edit().putBoolean("cheats.parts",!parts).apply();sendCheats();
                         Toast.makeText(getContext(),!parts?"Toutes les pièces débloquées dans les magasins de la carrière":"Pièces : comme le jeu les débloque",Toast.LENGTH_SHORT).show();break;
+                    case 6: showMaxPerf();break;
                 }
             }).setNegativeButton("Fermer",null).show();
+    }
+    /** Performances au maximum (src/runtime/maxperf.c): every performance package, up to the last level, in the
+     *  career cars picked: all of them, or one. */
+    private void showMaxPerf() {
+        String list=photo.carList();
+        java.util.List<String> names=new java.util.ArrayList<>();java.util.List<Integer> slots=new java.util.ArrayList<>();
+        if(list!=null)for(String line:list.split("\n")){
+            String[] f=line.split("\t");if(f.length<3)continue;
+            try{slots.add(Integer.parseInt(f[0]));}catch(NumberFormatException e){continue;}
+            names.add(f[1]+(f[2].equals("1")?"  (conduite)":""));
+        }
+        if(slots.isEmpty()){Toast.makeText(getContext(),"Aucune voiture : seulement en carrière, hors LAN",Toast.LENGTH_SHORT).show();return;}
+        names.add(0,"Toutes mes voitures ("+slots.size()+")");slots.add(0,-1);
+        new AlertDialog.Builder(getContext()).setTitle("Performances au maximum")
+            .setItems(names.toArray(new String[0]),(d,which)->{
+                String who=which==0?"toutes tes voitures":names.get(which).replace("  (conduite)","");
+                cheatToast(photo.maxPerf(slots.get(which))!=0,"Performances au maximum : "+who+". Sauvegarde ta carrière pour les garder.","Seulement en carrière, hors LAN");
+            }).setNegativeButton("Annuler",null).show();
     }
     // ---- the radars (src/runtime/radars.c): the nearest one's distance and direction, a note at each pass ----
     private int[] radars=new int[13];private long radarUntil;

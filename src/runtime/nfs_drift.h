@@ -112,6 +112,12 @@ int nfs_radar_info(int i, float *start, float *dir, int *record);
 int nfs_teleport_status(void);              /* 1 the world map is open in career free roam */
 int nfs_teleport(int what);                 /* any thread: 1..6 a shop's kind, 100 + i radar i */
 void nfs_teleport_frame(void);              /* guest thread, after each Present */                /* guest thread, after each Present */
+/* The solo cheats' "Performances au maximum" (maxperf.c; garage.c's slots). */
+uint32_t nfs_garage_slot_car(unsigned i);   /* the career's car of slot i (0-9), 0 none */
+uint32_t nfs_garage_driven(void);           /* the career's car driven */
+int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
+int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
+void nfs_maxperf_frame(void);               /* guest thread, after each Present */
 /* "Super puissance" in career free roam (power.c). */
 void nfs_power_frame(void);                 /* guest thread, after each Present */
 int nfs_power(int level);                   /* any thread: 0 off, 1 x1.5, 2 x2, 3 x3; 1 when it is held now */

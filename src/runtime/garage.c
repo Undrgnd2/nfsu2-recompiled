@@ -294,6 +294,13 @@ static uint32_t garage_find(uint32_t db, uint32_t h) {
 }
 
 int nfs_garage_has_career_car(void) { return garage_find(G_FECARS, MEM32(G_CAREER + K_CAR)) != 0; }
+/* maxperf.c: the career's car of slot i (0-9), 0 when the slot has none; the car the career drives */
+uint32_t nfs_garage_slot_car(unsigned i) {
+    if (i >= SLOTS) return 0;
+    uint32_t r = slot(G_FECARS, i);
+    return ok(r, REC_SZ) && MEM8(r + R_OWNED) ? r : 0;
+}
+uint32_t nfs_garage_driven(void) { return garage_find(G_FECARS, MEM32(G_CAREER + K_CAR)); }
 
 /* --- new careers, stages --- */
 /* (guest calls after the original's: its eax and edx kept, they are scratch registers to the calls) */
