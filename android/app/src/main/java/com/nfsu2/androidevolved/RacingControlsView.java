@@ -997,6 +997,8 @@ final class RacingControlsView extends View {
     boolean damageOn() {return layouts.getBoolean("damage",false);}
     /** Music in the drag and drift events (src/runtime/drift.c). */
     boolean raceMusic() {return layouts.getBoolean("racemusic",false);}
+    /** The gearbox whine (src/runtime/whine.c). */
+    boolean whineOn() {return layouts.getBoolean("whine",false);}
     /** The car's own license plate (src/runtime/plates.c): up to 8 capitals and digits, "" the game's. */
     String plateText() {return layouts.getString("plate","");}
     /** Stance (src/runtime/stance.c): the player's car's camber, offset and tires' width, seen at once as it changes. */
@@ -1283,6 +1285,10 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Sifflement de boîte de vitesses",whineOn()?"Activé":"Désactivé",0,()->{
+            boolean on=!whineOn();layouts.edit().putBoolean("whine",on).apply();
+            Toast.makeText(getContext(),on?"Sifflement de boîte activé":"Sifflement de boîte désactivé",Toast.LENGTH_SHORT).show();
+        });
         menuRow(rows,"Musique en drag et en drift",raceMusic()?"Activée":"Désactivée",0,()->{
             boolean on=!raceMusic();layouts.edit().putBoolean("racemusic",on).apply();
             Toast.makeText(getContext(),on?"Musique en drag et en drift : dès la prochaine épreuve":"Drag et drift : silencieux, comme le jeu",Toast.LENGTH_SHORT).show();

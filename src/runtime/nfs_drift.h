@@ -122,6 +122,11 @@ void nfs_garage_open_slots(unsigned n);     /* at least n of the 10 garage slots
 int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
 int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
 void nfs_maxperf_frame(void);               /* guest thread, after each Present */
+/* The player's gearbox whine (whine.c: ropi's UG2 Transmission Whine; its sounds in assets/whine). */
+void nfs_whine_sound(int w, const void *data, unsigned len);   /* main.cpp: the three WAVs */
+void nfs_whine_enable(int on);              /* any thread */
+void nfs_whine_frame(void);                 /* guest thread, after each Present */
+void nfs_whine_mix(float *acc, unsigned frames, unsigned rate);   /* audio thread: added to the mix */
 /* The player's car's stance (stance.c): camber, offset, tires' width, as it is drawn. */
 uint32_t nfs_garage_find_car(uint32_t h);   /* garage.c: the player's car record of handle h, 0 none */
 int nfs_plates_fe_ours(void);               /* plates.c: the front end's car is ours */

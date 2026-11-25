@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include "audio_resampler.h"
+extern "C" void nfs_whine_mix(float* acc,unsigned frames,unsigned rate);   // src/runtime/whine.c: the gearbox whine
 struct PcmVoice {
     std::vector<uint8_t> samples;
     unsigned channels=2,bits=16,rate=48000,frequency=48000;
@@ -84,6 +85,7 @@ public:
                 voice->position+=step;
             }
         }
+        nfs_whine_mix(output,frames,rate);
         for(unsigned i=0;i<frames*2;++i){
             float amplitude=std::abs(output[i]);peakAmplitude=std::max(peakAmplitude,amplitude);
             if(amplitude>1.f)++clippedSamples;

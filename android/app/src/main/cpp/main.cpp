@@ -1,5 +1,6 @@
 #include <android_native_app_glue.h>
 #include <android/log.h>
+#include <android/asset_manager.h>
 #include <vulkan/vulkan.h>
 #include <algorithm>
 #include <vector>
@@ -341,6 +342,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePlate(JNIEnv* env,jclass,jstring text){
     const char* t=text?env->GetStringUTFChars(text,nullptr):nullptr;nfs_plates_set(t?t:"");if(t)env->ReleaseStringUTFChars(text,t);
 }
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeWhine(JNIEnv*,jclass,jboolean on){nfs_whine_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRaceMusic(JNIEnv*,jclass,jboolean on){nfs_drift_race_music(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeDamage(JNIEnv*,jclass,jboolean on){nfs_damage_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeHiddenRaces(JNIEnv*,jclass,jboolean on){nfs_hiddenraces_enable(on==JNI_TRUE);}
@@ -469,6 +471,13 @@ static void configurePipelineCache(android_app* app){
 }
 void android_main(android_app* app) {
     configurePipelineCache(app);
+    // the gearbox whine's sounds (assets/whine, src/runtime/whine.c)
+    if (AAssetManager* assets = app->activity ? app->activity->assetManager : nullptr) {
+        static const char* const names[] = {"whine/car_whine.wav","whine/car_whine_2.wav","whine/car_whine_reverse.wav"};
+        for (int w = 0; w < 3; ++w) if (AAsset* a = AAssetManager_open(assets, names[w], AASSET_MODE_BUFFER)) {
+            nfs_whine_sound(w, AAsset_getBuffer(a), unsigned(AAsset_getLength(a))); AAsset_close(a);
+        }
+    }
     Host host; app->userData = &host; app->onAppCmd = onCommand;app->onInputEvent=onInput;
     try {
         testGuestMemory();
