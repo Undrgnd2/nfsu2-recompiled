@@ -157,6 +157,13 @@ int nfs_power(int level);                   /* any thread: 0 off, 1 x1.5, 2 x2, 
 /* What the phone feels of the player's car (haptics.c). */
 void nfs_haptics_frame(void);               /* guest thread, after each Present */
 void nfs_haptics_status(int out[4]);        /* knocks (their number, the last one's strength 0..100), gear changes, nitrous going on (their numbers) */
+/* The car driven by the game's AI in career free roam (autopilot.c). */
+int nfs_autopilot_active(void);
+void nfs_autopilot_toggle(void);            /* any thread: the touch button */
+void nfs_autopilot_touched(void);           /* any thread: a pedal or the steering touched */
+void nfs_autopilot_status(int out[4]);      /* on, offered, last event, its number */
+void nfs_autopilot_frame(void);             /* guest thread, after each Present */
+float nfs_cruise_held(void);                /* cruise.c: the speed held (km/h), 0 off */
 /* A cruise control in career free roam (cruise.c). */
 void nfs_cruise_ov_input(void);             /* wraps 0x407A30, the player's controls into the car */
 void nfs_cruise_frame(void);                /* guest thread, after each Present */

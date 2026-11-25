@@ -58,6 +58,7 @@ public final class GameActivity extends NativeActivity {
     private static native void nativeDamage(boolean on);
     private static native void nativeRaceMusic(boolean on);
     private static native void nativeWhine(boolean on);
+    private static native int[] nativeAutopilotStatus();
     private static native void nativePlate(String text);
     private static native int[] nativeStanceGet();
     private static native int nativeStanceSet(int has,int fc,int rc,int fo,int ro,int tw);
@@ -202,6 +203,7 @@ public final class GameActivity extends NativeActivity {
             if(!foreground||touchControls==null)return;
             touchControls.setRadars(nativeRadarStatus(touchControls.radarsShown()));
             touchControls.setCruise(nativeCruiseStatus());
+            touchControls.setAutopilot(nativeAutopilotStatus());
             touchControls.setHaptics(nativeHapticsStatus());
             touchControls.setPower(nativePower(touchControls.powerLevel()));
             nativeOpenCity(touchControls.openCity());

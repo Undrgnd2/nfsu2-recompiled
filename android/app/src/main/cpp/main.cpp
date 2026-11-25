@@ -322,6 +322,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
     if(scan==0xf5){if(down==JNI_TRUE)nfs_showoff_press();return;}
     // 0xF6..0xF8: the cruise control's button, − and + (src/runtime/cruise.c).
     if(scan>=0xf6&&scan<=0xf8){if(down==JNI_TRUE)nfs_cruise_key(scan);return;}
+    // 0xF9: the autopilot's button, 0xFA: a pedal or the steering touched while it drives (src/runtime/autopilot.c).
+    if(scan==0xf9){if(down==JNI_TRUE)nfs_autopilot_toggle();return;}
+    if(scan==0xfa){if(down==JNI_TRUE)nfs_autopilot_touched();return;}
     setGuestKey(unsigned(scan),down==JNI_TRUE);
     __android_log_print(ANDROID_LOG_INFO,"NFSU2","Android touch DIK=%02x down=%d",unsigned(scan),int(down));
 }
@@ -341,6 +344,9 @@ extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeStanceSave(JNIEnv*,jclass){nfs_stance_save();}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePlate(JNIEnv* env,jclass,jstring text){
     const char* t=text?env->GetStringUTFChars(text,nullptr):nullptr;nfs_plates_set(t?t:"");if(t)env->ReleaseStringUTFChars(text,t);
+}
+extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeAutopilotStatus(JNIEnv* env,jclass){
+    int s[4];nfs_autopilot_status(s);jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(s));return out;
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeWhine(JNIEnv*,jclass,jboolean on){nfs_whine_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRaceMusic(JNIEnv*,jclass,jboolean on){nfs_drift_race_music(on==JNI_TRUE);}

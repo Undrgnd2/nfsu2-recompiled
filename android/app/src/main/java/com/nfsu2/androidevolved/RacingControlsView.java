@@ -169,6 +169,8 @@ final class RacingControlsView extends View {
             addU(w/2-80,T+56,160,48,PILL,"t:Téléporter",TELEPORT,-1,0);controls.get(controls.size()-1).hidden=!mapOpen();
             // Régulateur de vitesse: over N₂O; − and + either side of its speed, bottom middle, while it holds (cruise.c)
             addU(w-R-12-60+2,h-B-160-60-8-56,56,56,ROUND,"cruise",0xF6,-1,0);
+            // Pilote auto: over the cruise control's, offered in career free roam (autopilot.c)
+            addU(w-R-12-60+2,h-B-160-60-8-56-8-56,56,56,ROUND,"autopilot",0xF9,-1,0);controls.get(controls.size()-1).hidden=autopilot[1]==0;
             addCruiseSteps(w,h-B);
         } else {
             final float k=52;
@@ -473,6 +475,8 @@ final class RacingControlsView extends View {
             add(240,16,46,"drift",0xF1);  // Mode drift en exploration (drift.c), aucune touche du jeu
             add(296,16,46,"ghost",0xF2);  // Mode fantôme en exploration (ghost.c), aucune touche du jeu
             add(352,16,46,"cruise",0xF6); // Régulateur de vitesse en exploration (cruise.c)
+            add(408,16,46,"autopilot",0xF9); // Pilote auto en exploration (autopilot.c)
+            controls.get(controls.size()-1).hidden=autopilot[1]==0;
             addCruiseSteps(w,bottom);
             if(style.equals("classic")) {
                 add(20,bottom-92,92,"left",0xcb);
@@ -555,7 +559,7 @@ final class RacingControlsView extends View {
     /** undrgnd2.eu's look: see-through black, white words, lime when pressed or lit. */
     private void drawUndrgnd(Canvas canvas,Control c) {
         boolean on=c.held>0, picked=editing&&c==selected;
-        boolean lit=(c.scan==0xF6&&cruise[0]!=0)||(c.scan==0xF5&&ghost.length>5&&(ghost[5]&7)!=0)||(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
+        boolean lit=(c.scan==0xF6&&cruise[0]!=0)||(c.scan==0xF9&&autopilot[0]!=0)||(c.scan==0xF5&&ghost.length>5&&(ghost[5]&7)!=0)||(c.scan==0xF4&&ghost.length>4&&ghost[4]==2)||(c.scan==0xF1&&driftOn())||(c.scan==0xF2&&(ghost[0]&1)!=0)||(c.scan==HYD_LIFT&&hyd==1)||(c.scan==HYD_BOUNCE&&hyd==2);
         boolean small=c.scan<0||c.shape==ROUND&&c.group==0&&c.area.top<40;
         float cx=c.area.centerX(),cy=c.area.centerY(),r=Math.min(c.area.width(),c.area.height())/2;
         int bg=on?0xB8000000:racing&&c.scan>=0?0x33000000:0x66000000;
@@ -694,6 +698,13 @@ final class RacingControlsView extends View {
                 canvas.drawPath(path,line);
                 canvas.drawLine(cx+s*.45f,base-s*.4f,cx+s*.85f,base-s*1.25f,line);
                 canvas.drawCircle(cx-s*.55f,base+s*.15f,s*.2f,fill);canvas.drawCircle(cx+s*.55f,base+s*.15f,s*.2f,fill);
+                break;
+            }
+            case "autopilot": {   // a steering wheel: its rim and three spokes
+                canvas.drawCircle(cx,cy,s,line);
+                canvas.drawCircle(cx,cy,s*.22f,fill);
+                canvas.drawLine(cx-s,cy,cx-s*.22f,cy,line);canvas.drawLine(cx+s*.22f,cy,cx+s,cy,line);
+                canvas.drawLine(cx,cy+s*.22f,cx,cy+s,line);
                 break;
             }
             case "cruise": {   // a speedometer: its dial, the needle held, a lock under it
@@ -1105,6 +1116,27 @@ final class RacingControlsView extends View {
         addU(w/2+88,bottom-48,52,48,PILL,"t:+",0xF8,-1,0);controls.get(controls.size()-1).hidden=cruise[0]==0;
         for(Control c:controls)if(c.scan==0xF6)c.hidden=!cruiseShown()||cruise[4]==0;
     }
+    // ---- the autopilot (src/runtime/autopilot.c): the game's AI drives the player's car ----
+    private int[] autopilot=new int[4];private int autopilotSeen=-1;
+    void setAutopilot(int[] s) {
+        if(s==null||s.length<4)return;
+        boolean changed=!java.util.Arrays.equals(s,autopilot);
+        if(autopilotSeen>=0&&s[3]!=autopilotSeen) {
+            String t=null;
+            switch(s[2]) {
+                case 1:t=cruise[0]!=0?"Pilote auto : à "+cruise[1]+" km/h au plus":"Pilote auto activé";break;
+                case 2:t="Pilote auto désactivé";break;
+                case 3:t="Pilote auto coupé";break;
+                case 4:t="Pilote auto : seulement en exploration carrière";break;
+                case 5:t="Tu reprends le volant";break;
+            }
+            if(t!=null){cruiseText=t;cruiseUntil=android.os.SystemClock.uptimeMillis()+2000;}
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        autopilotSeen=s[3];autopilot=s;
+        for(Control c:controls)if(c.scan==0xF9){boolean hide=s[1]==0;if(hide!=c.hidden){c.hidden=hide;changed=true;}}
+        if(changed&&racing)invalidate();
+    }
     void setCruise(int[] s) {
         if(s==null||s.length<5)return;
         boolean changed=!java.util.Arrays.equals(s,cruise);
@@ -1438,6 +1470,8 @@ final class RacingControlsView extends View {
     private void lift(int scan) { if(scan>=0&&scan<256&&keyCount[scan]>0&&--keyCount[scan]==0)keys.set(scan,false); }
     private void hold(Control c) {
         if(c==null||++c.held!=1)return;
+        // the autopilot drives: a pedal, N₂O, the handbrake or the steering gives the car back to the player
+        if(autopilot[0]!=0&&(c.scan==0xc8||c.scan==0xd0||c.scan==0xcb||c.scan==0xcd||c.scan==0x39||c.scan==0x38||c.scan==STICK))tap(0xFA);
         press(c.scan);press(c.scan2);
         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
     }

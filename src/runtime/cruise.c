@@ -94,14 +94,36 @@ void nfs_cruise_frame(void) {
         if (C.on) off(EV_LEFT, "not in free roam");
         if (atomic_exchange(&s_toggle, 0)) event(EV_NOT_HERE);
         atomic_store(&s_step, 0);
+        return;
+    }
+    /* the autopilot drives (autopilot.c): the player's input (0x407A30) does not run, so the buttons are taken here,
+     * and the speed held is the autopilot's limit */
+    if (!nfs_autopilot_active()) return;
+    float kmh = fabsf(rdf(car + CAR_SPEED)) * 3.6f;
+    if (atomic_exchange(&s_toggle, 0)) {
+        if (C.on) off(EV_OFF, "button");
+        else {
+            C.on = 1; C.ctl = 0; C.set = clampf(STEP_KMH * roundf((kmh < 60.f ? 60.f : kmh) / STEP_KMH), MIN_KMH, MAX_KMH);
+            C.slow = 0; C.integ = 0.5f; C.lx = rdf(car + CAR_PLACE); C.ly = rdf(car + CAR_PLACE + 4u);
+            atomic_store(&s_on, 1); atomic_store(&s_set, (int)C.set); event(EV_ON);
+            LOGI("Cruise: on at %.0f km/h (the autopilot's limit)", (double)C.set);
+        }
+    }
+    int steps = atomic_exchange(&s_step, 0);
+    if (C.on && steps) {
+        float to = clampf(STEP_KMH * roundf((C.set + steps * STEP_KMH) / STEP_KMH), MIN_KMH, MAX_KMH);
+        if (to != C.set) { C.set = to; atomic_store(&s_set, (int)to); event(EV_SET); }
     }
 }
+/* autopilot.c: the speed the cruise control holds (km/h), 0 when it is off */
+float nfs_cruise_held(void) { return C.on ? C.set : 0.f; }
 
 /* 0x407A30 (thiscall: the input; the frame's step, s): the player's controls into the car */
 void nfs_cruise_ov_input(void) {
     uint32_t in = g_ecx;
     float dt; { uint32_t v = MEM32(g_esp + 4); memcpy(&dt, &v, 4); }
     sub_00407A30_orig();
+    if (nfs_autopilot_active()) return;                        /* (the game's AI drives: its throttle, not ours) */
     uint32_t pl = rd(G_PLAYER1), car = pl ? rd(pl + 4u) : 0;
     if (!car || rd(in + IN_CAR) != car || !ok(in, IN_EBRAKE_KEY + 4u) || !ok(car, CAR_GAS + 4u)) return;
     if (!isfinite(dt) || dt <= 0.f || dt > 0.25f) dt = 1.f / 60.f;
@@ -131,6 +153,7 @@ void nfs_cruise_ov_input(void) {
         if (to != C.set) { C.set = to; atomic_store(&s_set, (int)to); event(EV_SET); LOGI("Cruise: %.0f km/h", (double)to); }
     }
     if (!C.on) return;
+    if (!C.ctl) C.ctl = in;                                    /* (set while the autopilot drove) */
     if (in != C.ctl || !here) { off(EV_LEFT, "not in free roam"); return; }
     if (hypotf(x - C.lx, y - C.ly) > JUMP_M) { off(EV_LEFT, "the car jumped"); return; }
     C.lx = x; C.ly = y;
