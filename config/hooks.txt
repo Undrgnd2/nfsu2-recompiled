@@ -45,3 +45,6 @@
 0x00625A27  damage: Render's draw of a plate (damage.c)
 0x00624C5B  damage: back from an exhaust tip's draw (0x624C57 is a branch target) (damage.c)
 0x00625A30  damage: back from a plate's draw (0x625A2C is a branch target) (damage.c)
+0x00482287  race music: music manager test al, al (a drag event?) - drag races play their songs (drift.c)
+0x00471B7A  race music: in-game mix test al, al ([0x89E7D8], a drag event) - the music channel stays up (drift.c)
+0x00471B8C  race music: in-game mix test al, al ([0x89E7D9], a drift event) - the music channel stays up (drift.c)

@@ -299,10 +299,24 @@ void nfs_drift_frame(void) {
 }
 
 /* The music's tests of a drift event: none while the switch is ours (free roam's songs keep playing). */
+/* Music in the drag and drift events (the ⚙ menu; nfsu2-web's race_music, off by default as the original, whose
+ * silence leaves the engine to be heard for the shifts): the music manager's tick (0x482180) plays the EA Trax songs
+ * in the world only when the race is no drift (0x401910) and no drag event (0x4018F0), and the in-game mix (0x471970)
+ * turns the music's channel all the way down for both ([0x89E7D8] drag, [0x89E7D9] drift). With it on neither sees
+ * the race's drag or drift byte, so those races play their songs from the start, as a circuit race does, at the
+ * game's music volume. */
+static atomic_int s_race_music;
+void nfs_drift_race_music(int on) {
+    if (atomic_exchange(&s_race_music, on != 0) != (on != 0)) LOGI("Drift: music in drag and drift races %s", on ? "on" : "off");
+}
 void nfs_drift_hook(uint32_t va) {
-    if (!D.on || MEM8(G_DRIFTRACE)) return;
-    if (va == 0x00482279u) g_eax &= ~0xffu;   /* music manager: test al, al (0x401910, a drift event?) */
-    else if (va == 0x00471B95u) g_eax = 0;    /* in-game mix: test eax, eax (eax = [0x890104]) */
+    int music = atomic_load(&s_race_music), mode = D.on && !MEM8(G_DRIFTRACE);
+    switch (va) {
+    case 0x00482279u: if (mode || music) g_eax &= ~0xffu; break;   /* music manager: test al, al (0x401910, a drift event?) */
+    case 0x00482287u: if (music) g_eax &= ~0xffu; break;           /* test al, al (0x4018F0, a drag event?) */
+    case 0x00471B7Au: case 0x00471B8Cu: if (music) g_eax &= ~0xffu; break;   /* in-game mix: a drag, a drift event */
+    case 0x00471B95u: if (mode) g_eax = 0; break;                   /* in-game mix: test eax, eax (eax = [0x890104]) */
+    }
 }
 
 /* Drift-event routines free roam cannot take, skipped while the switch is ours. */

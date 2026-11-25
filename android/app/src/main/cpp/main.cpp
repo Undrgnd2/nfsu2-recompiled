@@ -341,6 +341,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePlate(JNIEnv* env,jclass,jstring text){
     const char* t=text?env->GetStringUTFChars(text,nullptr):nullptr;nfs_plates_set(t?t:"");if(t)env->ReleaseStringUTFChars(text,t);
 }
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRaceMusic(JNIEnv*,jclass,jboolean on){nfs_drift_race_music(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeDamage(JNIEnv*,jclass,jboolean on){nfs_damage_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeHiddenRaces(JNIEnv*,jclass,jboolean on){nfs_hiddenraces_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeOpenCity(JNIEnv*,jclass,jboolean on){nfs_walls_city_open(on==JNI_TRUE);}

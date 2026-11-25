@@ -56,6 +56,7 @@ public final class GameActivity extends NativeActivity {
     private static native void nativeOpenCity(boolean on);
     private static native void nativeHiddenRaces(boolean on);
     private static native void nativeDamage(boolean on);
+    private static native void nativeRaceMusic(boolean on);
     private static native void nativePlate(String text);
     private static native int[] nativeStanceGet();
     private static native int nativeStanceSet(int has,int fc,int rc,int fo,int ro,int tw);
@@ -205,6 +206,7 @@ public final class GameActivity extends NativeActivity {
             nativeOpenCity(touchControls.openCity());
             nativeHiddenRaces(touchControls.hiddenRaces());
             nativeDamage(touchControls.damageOn());
+            nativeRaceMusic(touchControls.raceMusic());
             String plate=touchControls.plateText();
             if(!plate.equals(plateSent)){nativePlate(plate);plateSent=plate;}
             touchControls.postDelayed(this,40);

@@ -9,6 +9,7 @@ void nfs_drift_frame(void);                 /* guest thread, after each Present 
 void nfs_drift_press(void);                 /* the DRIFT touch button (any thread) */
 void nfs_drift_status(int out[7]);          /* flags (1 chosen, 2 on, 4 outside free roam), multiplier, next level's
                                                points, total, best, current drift, its state */
+void nfs_drift_race_music(int on);          /* drift.c, any thread: music in the drag and drift events */
 void nfs_drift_hook(uint32_t va);           /* hook sites 0x482279, 0x471B95 */
 void nfs_drift_ov_leaderboard(void);        /* wraps 0x56DDD0, 0x4C85D0, 0x4AC120 */
 void nfs_drift_ov_style_points(void);

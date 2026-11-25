@@ -995,6 +995,8 @@ final class RacingControlsView extends View {
     boolean hiddenRaces() {return layouts.getBoolean("hiddenraces",false);}
     /** Crash damage on the cars (src/runtime/damage.c, Crashing Foreign Cars' visual part). */
     boolean damageOn() {return layouts.getBoolean("damage",false);}
+    /** Music in the drag and drift events (src/runtime/drift.c). */
+    boolean raceMusic() {return layouts.getBoolean("racemusic",false);}
     /** The car's own license plate (src/runtime/plates.c): up to 8 capitals and digits, "" the game's. */
     String plateText() {return layouts.getString("plate","");}
     /** Stance (src/runtime/stance.c): the player's car's camber, offset and tires' width, seen at once as it changes. */
@@ -1281,6 +1283,10 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Musique en drag et en drift",raceMusic()?"Activée":"Désactivée",0,()->{
+            boolean on=!raceMusic();layouts.edit().putBoolean("racemusic",on).apply();
+            Toast.makeText(getContext(),on?"Musique en drag et en drift : dès la prochaine épreuve":"Drag et drift : silencieux, comme le jeu",Toast.LENGTH_SHORT).show();
+        });
         menuRow(rows,"Stance (carrossage, voie, pneus)","Réglage",0,this::showStance);
         menuRow(rows,"Plaque d'immatriculation",plateText().isEmpty()?"Celle du jeu":plateText(),0,this::showPlate);
         menuRow(rows,"Dégâts visuels (Crashing Foreign Cars)",damageOn()?"Activés":"Désactivés",0,()->{
