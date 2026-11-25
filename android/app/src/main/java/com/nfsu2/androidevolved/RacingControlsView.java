@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -997,6 +997,44 @@ final class RacingControlsView extends View {
     boolean damageOn() {return layouts.getBoolean("damage",false);}
     /** The car's own license plate (src/runtime/plates.c): up to 8 capitals and digits, "" the game's. */
     String plateText() {return layouts.getString("plate","");}
+    /** Stance (src/runtime/stance.c): the player's car's camber, offset and tires' width, seen at once as it changes. */
+    private void showStance() {
+        if(photo==null)return;
+        int[] s=photo.stanceGet();
+        if(s==null||s.length<7||s[0]==0){Toast.makeText(getContext(),"Stance : pas de voiture (charge ta carrière ou une course rapide)",Toast.LENGTH_SHORT).show();return;}
+        final int[] v={s[2],s[3],s[4],s[5],s[6]};
+        final boolean[] has={s[1]!=0};
+        final String[] names={"Carrossage avant","Carrossage arrière","Voie avant","Voie arrière","Largeur des pneus"};
+        final int[] min={0,0,-40,-40,80},max={150,150,80,80,130};
+        final android.widget.TextView[] labels=new android.widget.TextView[5];
+        final android.widget.SeekBar[] bars=new android.widget.SeekBar[5];
+        android.widget.LinearLayout box=new android.widget.LinearLayout(getContext());box.setOrientation(android.widget.LinearLayout.VERTICAL);box.setPadding(px(22),px(8),px(22),0);
+        final Runnable send=()->photo.stanceSet(has[0]?1:0,v[0],v[1],v[2],v[3],v[4]);
+        for(int i=0;i<5;++i){
+            final int k=i;
+            labels[k]=new android.widget.TextView(getContext());labels[k].setTextSize(15);
+            bars[k]=new android.widget.SeekBar(getContext());bars[k].setMax(max[k]-min[k]);bars[k].setProgress(v[k]-min[k]);
+            bars[k].setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener(){
+                @Override public void onProgressChanged(android.widget.SeekBar b,int p,boolean user){v[k]=p+min[k];stanceLabel(labels[k],names[k],k,v[k]);if(user){has[0]=true;send.run();}}
+                @Override public void onStartTrackingTouch(android.widget.SeekBar b){}
+                @Override public void onStopTrackingTouch(android.widget.SeekBar b){}
+            });
+            stanceLabel(labels[k],names[k],k,v[k]);
+            box.addView(labels[k]);box.addView(bars[k]);
+        }
+        android.widget.ScrollView scroll=new android.widget.ScrollView(getContext());scroll.addView(box);
+        AlertDialog d=new AlertDialog.Builder(getContext()).setTitle("Stance de ta voiture")
+            .setView(scroll)
+            .setPositiveButton("OK",null)
+            .setNeutralButton("Comme le jeu",(x,w)->{has[0]=false;send.run();Toast.makeText(getContext(),"Stance : comme le jeu",Toast.LENGTH_SHORT).show();})
+            .create();
+        d.setOnDismissListener(x->photo.stanceSave());
+        d.show();
+    }
+    private void stanceLabel(android.widget.TextView t,String name,int k,int value) {
+        String v=k<2?String.format(java.util.Locale.FRANCE,"%.1f°",value/10f):k<4?(value>0?"+":"")+value+" mm":value+" %";
+        t.setText(name+" : "+v);
+    }
     private void showPlate() {
         final android.widget.EditText edit=new android.widget.EditText(getContext());
         edit.setSingleLine(true);edit.setText(plateText());edit.setHint("UNDRGND2");
@@ -1243,6 +1281,7 @@ final class RacingControlsView extends View {
                 .setItems(new String[]{"Enregistrer la disposition","Charger une disposition"},(d,which)->{if(which==0)saveNamedLayout();else loadNamedLayout();}).show());
         rows.addView(menuRule());
         menuRow(rows,"Exposition et niveau de blanc",toneSummary(),0,this::showTone);
+        menuRow(rows,"Stance (carrossage, voie, pneus)","Réglage",0,this::showStance);
         menuRow(rows,"Plaque d'immatriculation",plateText().isEmpty()?"Celle du jeu":plateText(),0,this::showPlate);
         menuRow(rows,"Dégâts visuels (Crashing Foreign Cars)",damageOn()?"Activés":"Désactivés",0,()->{
             boolean on=!damageOn();layouts.edit().putBoolean("damage",on).apply();

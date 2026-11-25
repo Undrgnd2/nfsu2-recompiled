@@ -114,6 +114,9 @@ static void fe_follow(void) {
     else if (b[0] && in(b, ours)) s_fe_ours = 1;
 }
 
+/* stance.c: the front end's car is ours (the garage's and the shops' screens) */
+int nfs_plates_fe_ours(void) { return s_fe_ours; }
+
 /* ---- the texture ---- */
 static const uint8_t *stock(uint32_t src) {
     uint32_t px = rd(src + TI_PIXELS), plat = rd(src);

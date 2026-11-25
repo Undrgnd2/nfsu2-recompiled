@@ -121,6 +121,14 @@ void nfs_garage_open_slots(unsigned n);     /* at least n of the 10 garage slots
 int nfs_maxperf_list(char *out, int n);     /* any thread: "slot<TAB>name<TAB>driven" lines; their number */
 int nfs_maxperf(int slot);                  /* any thread: -1 every car, else a slot; 0 not now */
 void nfs_maxperf_frame(void);               /* guest thread, after each Present */
+/* The player's car's stance (stance.c): camber, offset, tires' width, as it is drawn. */
+uint32_t nfs_garage_find_car(uint32_t h);   /* garage.c: the player's car record of handle h, 0 none */
+int nfs_plates_fe_ours(void);               /* plates.c: the front end's car is ours */
+void nfs_stance_get(int out[7]);            /* any thread: a car, has its own, front/rear camber (0.1 deg), offsets (mm), tires (%) */
+int nfs_stance_set(int has, int fc, int rc, int fo, int ro, int tw);   /* any thread: 0 no car */
+void nfs_stance_save(void);                 /* any thread: kept in STANCE.TXT */
+void nfs_stance_draw_begin(uint32_t ri, uint32_t esp);   /* photo.c's 0x620AE0 wrap */
+void nfs_stance_draw_end(void);
 /* The player's own license plate (plates.c, plate_image.c). */
 void nfs_plates_set(const char *text);      /* any thread: up to 8 capitals and digits, "" the game's plate */
 void nfs_plates_frame(void);                /* guest thread, after each Present */

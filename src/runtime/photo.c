@@ -457,9 +457,11 @@ void nfs_photo_ov_car(void) {                /* (showoff.c: the parts it opens, 
     nfs_carpaint_draw(g_ecx);                    /* (carpaint.c: its tips, calipers and rims, its own paint) */
     nfs_damage_render(g_ecx, g_esp + 4u);        /* (damage.c: its dents, bent wheels) */
     uint32_t plate = nfs_plates_begin(g_ecx);    /* (plates.c: its own license plate) */
+    nfs_stance_draw_begin(g_ecx, g_esp);         /* (stance.c: its camber, offset, tires) */
     uint32_t keep[6]; int so = nfs_showoff_put(g_ecx, 1, keep);
     sub_00620AE0_orig();
     if (so) nfs_showoff_take(keep);
+    nfs_stance_draw_end();
     nfs_plates_end(plate);
 }
 void nfs_photo_ov_car_parts(void)  {
