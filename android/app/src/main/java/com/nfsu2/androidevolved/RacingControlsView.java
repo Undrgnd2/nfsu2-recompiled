@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); int[] paintGet(); int paintSet(int has,int rgb,int finish); void paintSave(); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -1048,6 +1048,98 @@ final class RacingControlsView extends View {
         d.setOnDismissListener(x->photo.stanceSave());
         d.show();
     }
+    /** Peinture perso (src/runtime/paint.c): the player's car in any colour, picked or typed as #RRGGBB, and a finish. */
+    private void showPaint() {
+        if(photo==null)return;
+        int[] s=photo.paintGet();
+        if(s==null||s.length<4||s[0]==0){Toast.makeText(getContext(),"Peinture perso : pas de voiture (charge ta carrière ou une course rapide)",Toast.LENGTH_SHORT).show();return;}
+        final Context c=getContext();
+        final int[] finish={s[3]};
+        final ColorPickerView picker=new ColorPickerView(c);picker.setColor(0xFF000000|s[2]);
+        final android.widget.LinearLayout box=new android.widget.LinearLayout(c);box.setOrientation(android.widget.LinearLayout.VERTICAL);box.setPadding(px(18),px(8),px(18),0);
+        // my colours: tap one to use it, + keeps the current one, − takes the last picked one away
+        android.widget.TextView mine=new android.widget.TextView(c);mine.setText("Mes couleurs");mine.setTextSize(13);box.addView(mine);
+        final android.widget.LinearLayout swatches=new android.widget.LinearLayout(c);swatches.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        android.widget.HorizontalScrollView hs=new android.widget.HorizontalScrollView(c);hs.addView(swatches);box.addView(hs);
+        final ArrayList<Integer> palette=new ArrayList<>();
+        for(String p:layouts.getString("paint_palette","FFA31A,D32F2F,1E88E5,111111,F5F5F5").split(","))try{if(!p.isEmpty())palette.add(Integer.parseInt(p,16));}catch(NumberFormatException ignored){}
+        final int[] chosen={-1};
+        final android.widget.EditText hex=new android.widget.EditText(c);
+        final View preview=new View(c);
+        final boolean[] typing={false};
+        final Runnable[] fill=new Runnable[1];
+        final Runnable savePalette=()->{StringBuilder b=new StringBuilder();for(int v:palette){if(b.length()>0)b.append(',');b.append(String.format("%06X",v&0xFFFFFF));}layouts.edit().putString("paint_palette",b.toString()).apply();};
+        fill[0]=()->{
+            swatches.removeAllViews();
+            for(int i=0;i<palette.size();++i){
+                final int k=i,col=palette.get(i);
+                View sw=new View(c);android.graphics.drawable.GradientDrawable g=new android.graphics.drawable.GradientDrawable();
+                g.setColor(0xFF000000|col);g.setCornerRadius(px(6));g.setStroke(px(k==chosen[0]?3:1),k==chosen[0]?0xFFFFFFFF:0x66FFFFFF);sw.setBackground(g);
+                android.widget.LinearLayout.LayoutParams lp=new android.widget.LinearLayout.LayoutParams(px(38),px(38));lp.setMargins(0,px(4),px(6),px(4));
+                sw.setOnClickListener(v->{chosen[0]=k;picker.setColor(0xFF000000|col);fill[0].run();});
+                swatches.addView(sw,lp);
+            }
+            for(int j=0;j<2;++j){
+                final boolean add=j==0;
+                android.widget.Button bt=new android.widget.Button(c);bt.setText(add?"+":"−");bt.setMinWidth(0);bt.setMinimumWidth(0);
+                bt.setOnClickListener(v->{
+                    if(add){int col=picker.getColor()&0xFFFFFF;if(!palette.contains(col)&&palette.size()<24){palette.add(col);chosen[0]=palette.size()-1;}}
+                    else if(chosen[0]>=0&&chosen[0]<palette.size()){palette.remove(chosen[0]);chosen[0]=-1;}
+                    else Toast.makeText(c,"Touche d'abord une de tes couleurs",Toast.LENGTH_SHORT).show();
+                    savePalette.run();fill[0].run();
+                });
+                swatches.addView(bt,new android.widget.LinearLayout.LayoutParams(px(46),px(42)));
+            }
+        };
+        fill[0].run();
+        box.addView(picker,new android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,px(190)));
+        android.widget.LinearLayout row=new android.widget.LinearLayout(c);row.setOrientation(android.widget.LinearLayout.HORIZONTAL);row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.addView(preview,new android.widget.LinearLayout.LayoutParams(px(40),px(40)));
+        hex.setSingleLine(true);hex.setTypeface(Typeface.MONOSPACE);hex.setTextSize(17);
+        hex.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS|android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        hex.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
+        android.widget.LinearLayout.LayoutParams hp=new android.widget.LinearLayout.LayoutParams(0,android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,1f);hp.setMargins(px(10),0,0,0);
+        row.addView(hex,hp);box.addView(row);
+        final Runnable show=()->{
+            int col=picker.getColor();preview.setBackgroundColor(col);
+            if(!typing[0]){String t=String.format("#%06X",col&0xFFFFFF);if(!t.contentEquals(hex.getText()))hex.setText(t);}
+        };
+        picker.setListener(col->show.run());
+        hex.addTextChangedListener(new android.text.TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence a,int b,int d,int e){}
+            @Override public void onTextChanged(CharSequence a,int b,int d,int e){}
+            @Override public void afterTextChanged(android.text.Editable e){
+                String t=e.toString().trim();if(t.startsWith("#"))t=t.substring(1);
+                if(t.length()==6&&t.matches("[0-9A-Fa-f]{6}")){int col=0xFF000000|Integer.parseInt(t,16);if(col!=picker.getColor()){typing[0]=true;picker.setColor(col);typing[0]=false;}}
+            }
+        });
+        show.run();
+        // the finish
+        final String[] names={"Du jeu","Brillant","Métallisé","Nacré","Mat"};
+        android.widget.LinearLayout chips=new android.widget.LinearLayout(c);chips.setOrientation(android.widget.LinearLayout.HORIZONTAL);chips.setPadding(0,px(8),0,0);
+        final android.widget.TextView[] chip=new android.widget.TextView[names.length];
+        final Runnable mark=()->{for(int i=0;i<chip.length;++i){android.graphics.drawable.GradientDrawable g=new android.graphics.drawable.GradientDrawable();g.setCornerRadius(px(8));
+            g.setColor(i==finish[0]?0x5596D35F:0x22FFFFFF);g.setStroke(px(i==finish[0]?2:1),i==finish[0]?0xFF96D35F:0x44FFFFFF);chip[i].setBackground(g);}};
+        for(int i=0;i<names.length;++i){
+            final int k=i;chip[k]=new android.widget.TextView(c);chip[k].setText(names[k]);chip[k].setTextSize(13);chip[k].setGravity(android.view.Gravity.CENTER);chip[k].setPadding(px(4),px(8),px(4),px(8));
+            chip[k].setOnClickListener(v->{finish[0]=k;mark.run();});
+            android.widget.LinearLayout.LayoutParams cp=new android.widget.LinearLayout.LayoutParams(0,android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,1f);cp.setMargins(px(2),0,px(2),0);
+            chips.addView(chip[k],cp);
+        }
+        mark.run();box.addView(chips);
+        android.widget.TextView note=new android.widget.TextView(c);note.setTextSize(12);note.setAlpha(0.7f);note.setPadding(0,px(8),0,0);
+        note.setText("La couleur se voit au prochain chargement de la voiture : ressors et reviens à l'atelier ou au garage, ou lance une course.");
+        box.addView(note);
+        android.widget.ScrollView scroll=new android.widget.ScrollView(c);scroll.addView(box);
+        AlertDialog d=new AlertDialog.Builder(c).setTitle("Peinture perso")
+            .setView(scroll)
+            .setPositiveButton("OK",(x,w)->{photo.paintSet(1,picker.getColor()&0xFFFFFF,finish[0]);photo.paintSave();
+                Toast.makeText(c,String.format("Peinture perso #%06X : au prochain chargement de la voiture",picker.getColor()&0xFFFFFF),Toast.LENGTH_LONG).show();})
+            .setNegativeButton("Annuler",null)
+            .setNeutralButton("Comme le jeu",(x,w)->{photo.paintSet(0,0,0);photo.paintSave();Toast.makeText(c,"Peinture : celle du jeu, au prochain chargement de la voiture",Toast.LENGTH_SHORT).show();})
+            .create();
+        d.show();
+    }
     private void stanceLabel(android.widget.TextView t,String name,int k,int value) {
         String v=k<2?String.format(java.util.Locale.FRANCE,"%.1f°",value/10f):k<4?(value>0?"+":"")+value+" mm":value+" %";
         t.setText(name+" : "+v);
@@ -1332,6 +1424,7 @@ final class RacingControlsView extends View {
             Toast.makeText(getContext(),on?"Musique en drag et en drift : dès la prochaine épreuve":"Drag et drift : silencieux, comme le jeu",Toast.LENGTH_SHORT).show();
         });
         menuRow(rows,"Stance (carrossage, voie, pneus)","Réglage",0,this::showStance);
+        menuRow(rows,"Peinture perso (nuancier, code couleur)","Couleur",0,this::showPaint);
         menuRow(rows,"Plaque d'immatriculation",plateText().isEmpty()?"Celle du jeu":plateText(),0,this::showPlate);
         menuRow(rows,"Dégâts visuels (Crashing Foreign Cars)",damageOn()?"Activés":"Désactivés",0,()->{
             boolean on=!damageOn();layouts.edit().putBoolean("damage",on).apply();

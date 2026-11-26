@@ -64,6 +64,9 @@ public final class GameActivity extends NativeActivity {
     private static native int[] nativeStanceGet();
     private static native int nativeStanceSet(int has,int fc,int rc,int fo,int ro,int tw);
     private static native void nativeStanceSave();
+    private static native int[] nativePaintGet();
+    private static native int nativePaintSet(int has,int rgb,int finish);
+    private static native void nativePaintSave();
     private String plateSent;
     private static native int nativeTeleport(int what);
     private static native int[] nativeRadarList();
@@ -351,6 +354,9 @@ public final class GameActivity extends NativeActivity {
             @Override public int[] stanceGet() {return nativeStanceGet();}
             @Override public int stanceSet(int has,int fc,int rc,int fo,int ro,int tw) {return nativeStanceSet(has,fc,rc,fo,ro,tw);}
             @Override public void stanceSave() {nativeStanceSave();}
+            @Override public int[] paintGet() {return nativePaintGet();}
+            @Override public int paintSet(int has,int rgb,int finish) {return nativePaintSet(has,rgb,finish);}
+            @Override public void paintSave() {nativePaintSave();}
         });
         controlsWindow = new PopupWindow(touchControls, ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT, false);

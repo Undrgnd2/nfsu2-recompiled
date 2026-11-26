@@ -135,6 +135,14 @@ int nfs_stance_set(int has, int fc, int rc, int fo, int ro, int tw);   /* any th
 void nfs_stance_save(void);                 /* any thread: kept in STANCE.TXT */
 void nfs_stance_draw_begin(uint32_t ri, uint32_t esp);   /* photo.c's 0x620AE0 wrap */
 void nfs_stance_draw_end(void);
+/* The player's car painted any colour (paint.c): the skin's base colour and the finish's material. */
+void nfs_paint_get(int out[4]);             /* any thread: a car, has its own, 0xRRGGBB, finish (0 the paint's, 1 gloss, 2 metallic, 3 pearl, 4 matte) */
+int nfs_paint_set(int has, int rgb, int finish);   /* any thread: 0 no car */
+void nfs_paint_save(void);                  /* any thread: kept in PAINT.TXT */
+void nfs_paint_ov_compose(void);            /* wraps 0x61D790, the skin composed */
+void nfs_paint_ov_attr(void);               /* wraps 0x60FEF0, a part's attribute */
+void nfs_paint_draw_begin(uint32_t ri);     /* photo.c's 0x620AE0 and 0x6162E0 wraps */
+void nfs_paint_draw_end(void);
 /* The player's own license plate (plates.c, plate_image.c). */
 void nfs_plates_set(const char *text);      /* any thread: up to 8 capitals and digits, "" the game's plate */
 void nfs_plates_frame(void);                /* guest thread, after each Present */

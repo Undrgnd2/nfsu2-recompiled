@@ -342,6 +342,11 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
 }
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeStanceSet(JNIEnv*,jclass,jint has,jint fc,jint rc,jint fo,jint ro,jint tw){return nfs_stance_set(has,fc,rc,fo,ro,tw);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeStanceSave(JNIEnv*,jclass){nfs_stance_save();}
+extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePaintGet(JNIEnv* env,jclass){
+    int s[4];nfs_paint_get(s);jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(s));return out;
+}
+extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePaintSet(JNIEnv*,jclass,jint has,jint rgb,jint finish){return nfs_paint_set(has,rgb,finish);}
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePaintSave(JNIEnv*,jclass){nfs_paint_save();}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePlate(JNIEnv* env,jclass,jstring text){
     const char* t=text?env->GetStringUTFChars(text,nullptr):nullptr;nfs_plates_set(t?t:"");if(t)env->ReleaseStringUTFChars(text,t);
 }
