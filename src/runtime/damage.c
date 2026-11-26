@@ -11,8 +11,11 @@
  *   Render's draws: the body, an exhaust  hooks at the calls 0x624499, 0x624C52, 0x625A27 and after the last two:
  *     tip, a plate                          0x624C5B, 0x625A30 (the web's 0x624C57 and 0x625A2C are branch targets here)
  *   each frame                            nfs_damage_frame (after each Present)
- * Without the web's free roam multiplayer (the core's part for friends' cars is compiled, never called) and without the
- * scratches' texture pack (a mod file: the dents come without scratches). The core's clones live in the game's heap
+ * Without the web's free roam multiplayer (the core's part for friends' cars is compiled, never called). The scratches:
+ * Crashing Foreign Cars' own texture pack (DAMAGE_SCRATCH1..4, DXT5; nfsu2-web's tools/damage/scratches.tpk) in the
+ * APK (assets/damage/scratches.tpk), handed here by main.cpp at the start (nfs_damage_scratches); the core gives it to
+ * the game's LoadChunks once, from a block of the game's heap, its data 128-aligned, checked first as the game's loader
+ * trusts it (dmg_tpk_ok, as the web's). The core's clones live in the game's heap
  * (operator new 0x575620 / delete 0x575630). The switch stops new impacts; the damage there stays until the game's own
  * repair (a race's start, the garage).
  */
@@ -21,6 +24,7 @@
 #include "nfs_drift.h"
 #include <android/log.h>
 #include <stdatomic.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "NFSU2", __VA_ARGS__)
@@ -68,7 +72,77 @@ void dmg_free(uint32_t p) { if (p) nfs_guest_call(FN_DELETE, 0, &p, 1, 4); }
 int dmg_committed(uint32_t a, uint32_t n) { return a >= 0x10000u && nfs_guest_readable(a, n ? n : 1u); }
 uint32_t dmg_va_free(void) { return 256u << 20; }
 int dmg_big_memory(void) { return 0; }
-uint32_t dmg_scratches_read(uint32_t *data, uint32_t *size) { *data = 0; *size = 0; return 0; }
+/* ---- the scratches' texture pack ---- */
+static uint8_t *s_tpk;                /* the pack as the APK has it (main.cpp), 0 none */
+static uint32_t s_tpk_n;
+void nfs_damage_scratches(const void *data, unsigned len) {
+    if (s_tpk || !data || len < 16 || len > (16u << 20)) return;
+    if (!(s_tpk = malloc(len))) return;
+    memcpy(s_tpk, data, len); s_tpk_n = len;
+}
+#define TPK_CHUNK 0xb3300000u
+static int64_t tpk_chunk(uint32_t b, uint32_t end) { return b + 8u <= end && MEM32(b + 4u) <= end - b - 8u ? (int64_t)MEM32(b + 4u) : -1; }
+static uint64_t tex_bytes(uint32_t w, uint32_t h, uint32_t levels, uint32_t fmt) {
+    uint32_t blk = 1, bpb;
+    switch (fmt) {
+    case 21: case 22: bpb = 4; break;
+    case 28: case 41: bpb = 1; break;
+    case 0x31545844u: blk = 4; bpb = 8; break;
+    case 0x33545844u: case 0x35545844u: blk = 4; bpb = 16; break;
+    default: return 0;
+    }
+    uint64_t n = 0;
+    for (uint32_t lv = 0; lv < (levels ? levels : 1u) && lv < 16u; lv++) {
+        uint32_t lw = w >> lv ? w >> lv : 1u, lh = h >> lv ? h >> lv : 1u;
+        n += (uint64_t)((lw + blk - 1u) / blk) * ((lh + blk - 1u) / blk) * bpb;
+    }
+    return n;
+}
+/* the TPK at d (n bytes) as the game's loader trusts it (nfsu2-web damage.c dmg_tpk_ok, tools/packcheck.py) */
+static int tpk_ok(uint32_t d, uint32_t n) {
+    static const uint32_t want[3] = { 0x33310002u, 0x33310004u, 0x33310005u };
+    uint32_t at[3] = { 0 }, sz[3] = { 0 }, pix = 0, pend = 0, end = d + n;
+    for (uint32_t c = d + 8u; c < end;) {
+        int64_t s = tpk_chunk(c, end);
+        if (s < 0) return 0;
+        uint32_t ce = c + 8u + (uint32_t)s;
+        if (MEM32(c) == 0xb3310000u || MEM32(c) == 0xb3320000u)
+            for (uint32_t k = c + 8u; k < ce;) {
+                int64_t ks = tpk_chunk(k, ce);
+                if (ks < 0) return 0;
+                for (int j = 0; j < 3; j++) if (MEM32(k) == want[j]) { at[j] = k + 8u; sz[j] = (uint32_t)ks; }
+                if (MEM32(k) == 0x33320002u) { pix = (k + 8u + 0x7fu) & ~0x7fu; pend = k + 8u + (uint32_t)ks; }
+                k += 8u + (uint32_t)ks;
+            }
+        c = ce;
+    }
+    uint32_t cnt = sz[0] / 8u;
+    if (!at[0] || !at[1] || !at[2] || !pix || pix > pend || sz[0] != cnt * 8u || sz[1] != cnt * 0x7cu || sz[2] != cnt * 0x20u) return 0;
+    for (uint32_t k = 0; k < cnt; k++) {
+        uint32_t ti = at[1] + k * 0x7cu, img = MEM32(ti + 0x30u), pal = MEM32(ti + 0x34u), isz = MEM32(ti + 0x38u), psz = MEM32(ti + 0x3cu);
+        uint64_t need = tex_bytes(MEM16(ti + 0x44u), MEM16(ti + 0x46u), MEM8(ti + 0x4eu), MEM32(at[2] + k * 0x20u + 0x14u));
+        if (MEM32(ti + 0x24u) != MEM32(at[0] + 8u * k) || !MEM16(ti + 0x44u) || !MEM16(ti + 0x46u) || !need || isz < need ||
+            img > pend - pix || isz > pend - pix - img || (psz && (pal > pend - pix || psz > pend - pix - pal))) return 0;
+    }
+    return 1;
+}
+/* the core, once: the pack into a block of the game's heap (its data 128-aligned) -> the block, 0 none */
+uint32_t dmg_scratches_read(uint32_t *data, uint32_t *size) {
+    *data = 0; *size = 0;
+    if (!s_tpk) { LOGI("Damage: no scratches' pack in the APK: the dents without scratches"); return 0; }
+    uint32_t n = s_tpk_n, want = n + 128u, block = nfs_guest_call(FN_NEW, 0, &want, 1, 4);
+    if (!dmg_committed(block, want)) { LOGI("Damage: no memory for the scratches' pack"); return 0; }
+    uint32_t d = (block + 127u) & ~127u;
+    memcpy((void *)ADDR(d), s_tpk, n);
+    if (MEM32(d) != TPK_CHUNK || MEM32(d + 4u) + 8u != n || !tpk_ok(d, n)) {
+        dmg_free(block);
+        LOGI("Damage: the scratches' pack is not one the game's loader takes: the dents without scratches");
+        return 0;
+    }
+    *data = d; *size = n;
+    LOGI("Damage: the scratches' pack (%u KB) to the game", n >> 10);
+    return block;
+}
 
 /* ---- the switch ---- */
 void nfs_damage_enable(int on) { atomic_store(&s_want, on != 0); }

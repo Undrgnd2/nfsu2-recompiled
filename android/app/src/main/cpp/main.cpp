@@ -484,6 +484,10 @@ void android_main(android_app* app) {
         for (int w = 0; w < 3; ++w) if (AAsset* a = AAssetManager_open(assets, names[w], AASSET_MODE_BUFFER)) {
             nfs_whine_sound(w, AAsset_getBuffer(a), unsigned(AAsset_getLength(a))); AAsset_close(a);
         }
+        // the crash damage's scratches (assets/damage, src/runtime/damage.c)
+        if (AAsset* a = AAssetManager_open(assets, "damage/scratches.tpk", AASSET_MODE_BUFFER)) {
+            nfs_damage_scratches(AAsset_getBuffer(a), unsigned(AAsset_getLength(a))); AAsset_close(a);
+        }
     }
     Host host; app->userData = &host; app->onAppCmd = onCommand;app->onInputEvent=onInput;
     try {

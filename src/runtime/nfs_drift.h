@@ -143,6 +143,7 @@ void nfs_plates_end(uint32_t before);
 void nfs_plates_ov_model(void);             /* wraps 0x5C5930 */
 /* Crash damage on the cars (damage.c, damagecore.cpp: Crashing Foreign Cars' visual part). */
 void nfs_damage_enable(int on);             /* any thread */
+void nfs_damage_scratches(const void *data, unsigned len);   /* main.cpp: assets/damage/scratches.tpk */
 void nfs_damage_frame(void);                /* guest thread, after each Present */
 void nfs_damage_render(uint32_t cri, uint32_t args);   /* photo.c's wrap of 0x620AE0, before the game's */
 void nfs_damage_ov_impulse(void);           /* wraps 0x5A0B00 */
