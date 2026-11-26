@@ -157,6 +157,12 @@ int nfs_power(int level);                   /* any thread: 0 off, 1 x1.5, 2 x2, 
 /* What the phone feels of the player's car (haptics.c). */
 void nfs_haptics_frame(void);               /* guest thread, after each Present */
 void nfs_haptics_status(int out[4]);        /* knocks (their number, the last one's strength 0..100), gear changes, nitrous going on (their numbers) */
+/* The cinema camera while the autopilot drives (cinema.c, on photo.c's camera). */
+void nfs_cinema_enable(int on);             /* any thread: the menu's switch */
+int nfs_cinema_active(void);
+float nfs_cinema_fov(void);                 /* its shot's field of view, 0 off */
+void nfs_cinema_frame(void);                /* guest thread, after each Present */
+int nfs_photo_active(void);                 /* photo.c: photo mode has the camera */
 /* The car driven by the game's AI in career free roam (autopilot.c). */
 int nfs_autopilot_active(void);
 void nfs_autopilot_toggle(void);            /* any thread: the touch button */

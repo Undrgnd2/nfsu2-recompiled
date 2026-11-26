@@ -376,6 +376,8 @@ void nfs_photo_input(int cmd, int a, int b) {
 }
 /* the camera has stood still a few frames (d3d9_bridge.cpp: the live look is worked out once, then shown as it is) */
 int nfs_photo_still(void) { return P.on && P.still >= 3; }
+/* cinema.c: photo mode has the camera */
+int nfs_photo_active(void) { return P.on; }
 void nfs_photo_status(int out[6]) { for (int i = 0; i < 6; i++) out[i] = atomic_load(&s_status[i]); }
 
 void nfs_photo_frame(void) {
@@ -413,7 +415,7 @@ void nfs_photo_frame(void) {
 
 /* The front end's frame (0x5378C0, cdecl, no arguments): the HUD and any screen; not while photo mode is on. */
 void nfs_photo_ov_frontend(void) {
-    if (!P.on) { sub_005378C0_orig(); return; }
+    if (!P.on && !nfs_cinema_active()) { sub_005378C0_orig(); return; }   /* (cinema.c: no HUD either) */
     g_esp += 4;
 }
 /* The view made (0x5C7EC0, ret 0x10, the view at +4): player 1's with photo mode's field of view and tilt, the
@@ -428,13 +430,14 @@ static void view_roll(uint32_t m, float a) {
 void nfs_photo_ov_view(void) {
     uint32_t view = MEM32(g_esp + 4u), cam = 0;
     uint16_t keep_fov = 0; uint8_t keep[0x40];
-    if (P.on && ok(view, 0x44) && (MEM32(view + 4u) == 1u || MEM32(view + 4u) == 4u)) {
+    float fov = P.on ? P.fov : nfs_cinema_fov();               /* (cinema.c: its shot's) */
+    if (fov > 0.f && ok(view, 0x44) && (MEM32(view + 4u) == 1u || MEM32(view + 4u) == 4u)) {
         cam = MEM32(view + 0x40u);
         if (ok(cam, CAM_FOV + 2u)) {
             keep_fov = MEM16(cam + CAM_FOV);
-            MEM16(cam + CAM_FOV) = (uint16_t)lrintf(P.fov * 65536.f / 360.f);
+            MEM16(cam + CAM_FOV) = (uint16_t)lrintf(fov * 65536.f / 360.f);
             memcpy(keep, (const void *)ADDR(cam), sizeof keep);
-            if (P.roll != 0.f) view_roll(cam, P.roll * DEG);
+            if (P.on && P.roll != 0.f) view_roll(cam, P.roll * DEG);
         } else cam = 0;
     }
     sub_005C7EC0_orig();

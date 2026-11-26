@@ -348,6 +348,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nat
 extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeAutopilotStatus(JNIEnv* env,jclass){
     int s[4];nfs_autopilot_status(s);jintArray out=env->NewIntArray(4);if(out)env->SetIntArrayRegion(out,0,4,reinterpret_cast<const jint*>(s));return out;
 }
+extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeCinema(JNIEnv*,jclass,jboolean on){nfs_cinema_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeWhine(JNIEnv*,jclass,jboolean on){nfs_whine_enable(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeRaceMusic(JNIEnv*,jclass,jboolean on){nfs_drift_race_music(on==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeDamage(JNIEnv*,jclass,jboolean on){nfs_damage_enable(on==JNI_TRUE);}
