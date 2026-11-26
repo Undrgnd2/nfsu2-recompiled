@@ -162,6 +162,7 @@ void nfs_cinema_enable(int on);             /* any thread: the menu's switch */
 int nfs_cinema_active(void);
 float nfs_cinema_fov(void);                 /* its shot's field of view, 0 off */
 void nfs_cinema_frame(void);                /* guest thread, after each Present */
+void nfs_cinema_ov_mover(void);             /* wraps 0x44D420, the debug camera mover's update */
 int nfs_photo_active(void);                 /* photo.c: photo mode has the camera */
 /* The car driven by the game's AI in career free roam (autopilot.c). */
 int nfs_autopilot_active(void);

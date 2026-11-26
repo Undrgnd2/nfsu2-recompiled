@@ -43,13 +43,14 @@ uint32_t nfs_guest_call(uint32_t va, uint32_t ecx, const uint32_t *args, unsigne
 #define CAR_FWD       0x90u
 #define CAR_LEFT      0xa0u
 #define CAR_UP        0xb0u
+#define YAW_TAU_S     0.35f         /* the shots' heading follows the car's this smoothly */
 #define SHOT_MIN_S    5.f
 #define SHOT_MAX_S    9.f
 
 enum { S_SIDE, S_FRONT, S_CHASE, S_WHEEL, S_ROADSIDE, S_ORBIT, S_HELI, S_N };
 static const char *const k_shot[S_N] = { "side tracking", "low front", "wide chase", "wheel", "roadside", "orbit", "helicopter" };
 static atomic_int s_want;
-static struct { int on, shot, shots; double t0, start; float dur, side, fov, fix[3], spin; } C;
+static struct { int on, shot, shots; double t0, start, last; float dur, side, fov, fix[3], spin, yaw; int have_yaw; } C;
 
 static int ok(uint32_t va, uint32_t n) { return va >= 0x10000u && nfs_guest_readable(va, n); }
 static uint32_t rd(uint32_t va) { return ok(va, 4) ? MEM32(va) : 0; }
@@ -114,24 +115,24 @@ static void shot(const float *c, const float *f, const float *l, const float *u,
     memcpy(eye, e, sizeof e); memcpy(look, o, sizeof o);
 }
 
-/* guest thread, after each Present */
-void nfs_cinema_frame(void) {
-    uint32_t pl = rd(G_PLAYER1), car = pl ? rd(pl + PL_CAR) : 0;
-    int want = atomic_load(&s_want) && nfs_autopilot_active() && rd(G_FLOW) == 6u && ok(car, CAR_UP + 12u);
-    if (!want) { release(pl, "the autopilot or the switch"); return; }
-    if (nfs_photo_active()) return;                    /* (photo mode has the camera) */
+static void place_shot(uint32_t pl, uint32_t car) {
     double t = now_s();
-    if (mover_type(pl) != MOVER_DEBUG) {
-        uint32_t arg[2] = { MOVER_DEBUG, 0u };
-        nfs_guest_call(FN_SET_MOVER, pl, arg, 2, 0);
-        if (mover_type(pl) != MOVER_DEBUG) return;
-        if (!C.on) { C.on = 1; C.shots = 0; C.shot = -1; C.start = 0; srand((unsigned)(t * 1000.0)); LOGI("Cinema: on"); }
-    }
-    C.on = 1;
-    float c[3], f[3], l[3], u[3];
-    rd3(car + CAR_PLACE, c); rd3(car + CAR_FWD, f); rd3(car + CAR_LEFT, l); rd3(car + CAR_UP, u);
-    if (!isfinite(c[0] + c[1] + c[2] + f[0] + l[0] + u[2])) return;
+    float c[3], fw[3], f[3], l[3], u[3] = { 0.f, 0.f, 1.f };
+    rd3(car + CAR_PLACE, c); rd3(car + CAR_FWD, fw);
+    if (!isfinite(c[0] + c[1] + c[2] + fw[0] + fw[1])) return;
     c[2] += 0.4f;
+    float dt = C.last > 0 ? (float)(t - C.last) : 0.f;
+    C.last = t;
+    float yaw = atan2f(fw[1], fw[0]);
+    if (!C.have_yaw || dt <= 0.f || dt > 0.5f) { C.yaw = yaw; C.have_yaw = 1; }
+    else {
+        float d = yaw - C.yaw;
+        while (d > 3.14159265f) d -= 6.2831853f;
+        while (d < -3.14159265f) d += 6.2831853f;
+        C.yaw += d * (1.f - expf(-dt / YAW_TAU_S));
+    }
+    f[0] = cosf(C.yaw); f[1] = sinf(C.yaw); f[2] = 0.f;
+    l[0] = -f[1]; l[1] = f[0]; l[2] = 0.f;
     float done = C.shot < 0 ? 1.f : (float)(t - C.start) / C.dur;
     if (C.shot == S_ROADSIDE && done < 1.f) {          /* the car gone far past the roadside camera: cut */
         float dx = c[0] - C.fix[0], dy = c[1] - C.fix[1], ahead = dx * f[0] + dy * f[1];
@@ -145,5 +146,33 @@ void nfs_cinema_frame(void) {
     MEM32(G_FOLLOW) = 0xffffffffu;
     MEM32(G_NUDGE) = 0; MEM32(G_NUDGE + 4u) = 0; MEM32(G_NUDGE + 8u) = 0;
     for (int i = 0; i < 3; i++) { wrf(G_EYE + 4u * (uint32_t)i, eye[i]); wrf(G_LOOK + 4u * (uint32_t)i, look[i]); }
+}
+
+/* guest thread, after each Present: the debug camera given (or taken back), the shots placed by the mover's wrap */
+void nfs_cinema_frame(void) {
+    uint32_t pl = rd(G_PLAYER1), car = pl ? rd(pl + PL_CAR) : 0;
+    int want = atomic_load(&s_want) && nfs_autopilot_active() && rd(G_FLOW) == 6u && ok(car, CAR_UP + 12u);
+    if (!want) { release(pl, "the autopilot or the switch"); return; }
+    if (nfs_photo_active()) return;                    /* (photo mode has the camera) */
+    double t = now_s();
+    if (mover_type(pl) != MOVER_DEBUG) {
+        uint32_t arg[2] = { MOVER_DEBUG, 0u };
+        nfs_guest_call(FN_SET_MOVER, pl, arg, 2, 0);
+        if (mover_type(pl) != MOVER_DEBUG) return;
+        if (!C.on) { C.on = 1; C.shots = 0; C.shot = -1; C.start = 0; C.have_yaw = 0; C.last = 0; srand((unsigned)(t * 1000.0)); LOGI("Cinema: on"); }
+    }
+    C.on = 1;
+}
+
+/* The debug camera mover's update (0x44D420, its vtable 0x787E8C: it looks from [0x7EC4D0] at [0x8286A0]): the shot
+ * placed right before it, from where the car is as the camera looks, so the car stands where the camera sees it in
+ * every frame (placed after the frame, the car was a world step ahead of the camera, more or less with each frame's
+ * time: it shook back and forth). The shots are worked out in a level frame of the car's heading, smoothed: the
+ * car's own axes pitch and roll with its suspension (the throttle and the governor's cuts rock it). */
+void sub_0044D420_orig(void);
+void nfs_cinema_ov_mover(void) {
+    uint32_t pl = rd(G_PLAYER1), car = pl ? rd(pl + PL_CAR) : 0;
+    if (C.on && !nfs_photo_active() && ok(car, CAR_UP + 12u)) place_shot(pl, car);
+    sub_0044D420_orig();
 }
 #endif

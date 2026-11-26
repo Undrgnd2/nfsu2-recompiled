@@ -62,3 +62,4 @@
 0x005A0B00  damage: CarCollisionBody::ApplyImpulse, the game's, then the impact on the car's mesh (damage.c)
 0x00637D70  damage: CarDamage::SetDamageToZero, the repair of the dents, then the game's (damage.c)
 0x005C5930  plates: a model into the render lists, our license plate in its texture table while our car is drawn (plates.c)
+0x0044D420  cinema: the debug camera mover's update, the shot placed right before it from the car as it is (cinema.c)

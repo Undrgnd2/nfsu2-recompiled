@@ -115,6 +115,8 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     /* the solo cheats' car lot with every car, src/runtime/cheats.c */
     { 0x00513C50u, nfs_cheats_ov_cartypes },
     { 0x00527D30u, nfs_cheats_ov_races },
+    /* the cinema camera's shots, src/runtime/cinema.c */
+    { 0x0044D420u, nfs_cinema_ov_mover },
     /* the player's own license plate, src/runtime/plates.c */
     { 0x005C5930u, nfs_plates_ov_model },
     /* crash damage on the cars, src/runtime/damage.c */
