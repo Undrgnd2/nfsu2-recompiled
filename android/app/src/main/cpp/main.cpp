@@ -348,6 +348,18 @@ extern "C" JNIEXPORT jintArray JNICALL Java_com_nfsu2_androidevolved_GameActivit
 extern "C" JNIEXPORT jint JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePaintSet(JNIEnv*,jclass,jint has,jint rgb,jint finish){return nfs_paint_set(has,rgb,finish);}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePaintSave(JNIEnv*,jclass){nfs_paint_save();}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeLookAround(JNIEnv*,jclass,jint x,jint y){nfs_look_stick(x,y);}
+extern "C" int nfs_save_host_path(const char* rel,char* out,size_t n);
+// The menu's "Envoyer le journal": the last crash's and the last loading stall's reports (guest_runtime.cpp), as text.
+extern "C" JNIEXPORT jstring JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativeDiagnostics(JNIEnv* env,jclass){
+    std::string out;
+    const char* files[2][2]={{"NFS Underground 2\\CRASH_REPORT.TXT","Dernier plantage"},{"NFS Underground 2\\STALL_REPORT.TXT","Dernier blocage (chargement ou image figée)"}};
+    for(auto& f:files){
+        char path[1100];std::string text;
+        if(nfs_save_host_path(f[0],path,sizeof path))if(FILE* in=std::fopen(path,"rb")){char b[4096];size_t n;while((n=std::fread(b,1,sizeof b,in))>0)text.append(b,n);std::fclose(in);}
+        out+=std::string("=== ")+f[1]+" ===\n"+(text.empty()?"(aucun)\n":text)+"\n";
+    }
+    return env->NewStringUTF(out.c_str());
+}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsu2_androidevolved_GameActivity_nativePlate(JNIEnv* env,jclass,jstring text){
     const char* t=text?env->GetStringUTFChars(text,nullptr):nullptr;nfs_plates_set(t?t:"");if(t)env->ReleaseStringUTFChars(text,t);
 }

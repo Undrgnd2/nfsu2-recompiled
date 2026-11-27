@@ -38,6 +38,11 @@
 #include <cstdlib>
 #include <strings.h>
 #include <deque>
+#include <csignal>
+#include <cstdarg>
+#include <dlfcn.h>
+#include <ucontext.h>
+#include <android/log.h>
 #ifdef __ANDROID__
 #include <aaudio/AAudio.h>
 #endif
@@ -197,7 +202,23 @@ std::atomic<uint32_t> presentCount{0};
 int64_t steadyMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 // The last guest file opened (guest_files.inc): a loading screen that keeps presenting but opens nothing is stuck.
 std::atomic<int64_t> lastGuestFileMs{0};
-static void dumpGuestThreads();
+static void dumpGuestThreads(int fd=-1,bool tryLock=false);
+// The reports kept beside the profiles for the menu's "Envoyer le journal" (main.cpp nativeDiagnostics): the last
+// crash (the signal handler below) and the last loading stall, each written over the one before.
+static char crashReportPath[1100],stallReportPath[1100];
+// One line to the log and, when fd is open, to a report (also from the signal handler: no allocation here).
+static void reportLine(int fd,const char* fmt,...){
+    char b[1200];va_list a;va_start(a,fmt);int n=vsnprintf(b,sizeof b,fmt,a);va_end(a);
+    if(n<0)return;if(n>static_cast<int>(sizeof b)-1)n=sizeof b-1;
+    __android_log_write(ANDROID_LOG_WARN,"NFSU2",b);
+    if(fd>=0){ssize_t w=write(fd,b,static_cast<size_t>(n));w=write(fd,"\n",1);(void)w;}
+}
+static int openReport(const char* path,const char* what){
+    int fd=path[0]?open(path,O_WRONLY|O_CREAT|O_TRUNC,0644):-1;
+    time_t now=time(nullptr);struct tm tm;localtime_r(&now,&tm);char when[32];strftime(when,sizeof when,"%Y-%m-%d %H:%M:%S",&tm);
+    reportLine(fd,"NFSU2 %s report, %s",what,when);
+    return fd;
+}
 void startStallWatch(){
     static std::once_flag started;
     std::call_once(started,[]{std::thread([]{
@@ -210,37 +231,88 @@ void startStallWatch(){
             int64_t file=lastGuestFileMs.load(),fileIdle=steadyMs()-file;
             if(!guestPaused.load()&&flow==5u&&idle<2000&&file&&fileIdle>=15000&&reportedLoad!=file){
                 reportedLoad=file;
-                NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Guest loading stall: still loading, no file opened for %lld s; guest threads:",static_cast<long long>(fileIdle/1000));
-                dumpGuestThreads();
+                int fd=openReport(stallReportPath,"loading stall");
+                reportLine(fd,"Guest loading stall: still loading, no file opened for %lld s, frames shown %u; guest threads:",static_cast<long long>(fileIdle/1000),presentCount.load());
+                dumpGuestThreads(fd);
+                if(fd>=0)close(fd);
                 continue;
             }
             if(guestPaused.load()||idle<12000||reportedFor==last)continue;
             reportedFor=last;
-            NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Guest stall: no frame for %lld s; guest threads:",static_cast<long long>(idle/1000));
-            dumpGuestThreads();
+            int fd=openReport(stallReportPath,"frozen screen");
+            reportLine(fd,"Guest stall: no frame for %lld s, flow %u; guest threads:",static_cast<long long>(idle/1000),flow);
+            dumpGuestThreads(fd);
+            if(fd>=0)close(fd);
         }
     }).detach();});
 }
-static void dumpGuestThreads(){
+static void dumpGuestThreads(int fd,bool tryLock){
     {
-            std::lock_guard<std::mutex> lock(threadTracesMutex);
+            std::unique_lock<std::mutex> lock(threadTracesMutex,std::defer_lock);
+            if(tryLock){if(!lock.try_lock()){reportLine(fd,"  (the threads' list is busy)");return;}}else lock.lock();
             for(auto& [id,trace]:threadTraces){
                 const char* wait=trace->wait.load();uint32_t handle=trace->handle.load();
-                std::string detail,held,callers;
+                char detail[96]="",held[160]="",callers[200]="";
                 // Read-only peeks at guest memory from this host thread: stable while the guest is stuck.
                 if(wait&&!std::strcmp(wait,"EnterCriticalSection")&&memory&&memory->readable(handle,24))
-                    detail=" (owner thread "+std::to_string(read32(handle+12))+", count "+std::to_string(read32(handle+8))+")";
-                for(auto& slot:trace->held)if(uint32_t cs=slot.load())held+=" "+hex(cs);
+                    snprintf(detail,sizeof detail," (owner thread %u, count %u)",read32(handle+12),read32(handle+8));
+                for(auto& slot:trace->held)if(uint32_t cs=slot.load()){size_t l=strlen(held);snprintf(held+l,sizeof held-l," %08x",cs);}
                 uint32_t esp=trace->esp.load();
                 for(unsigned i=0,found=0;memory&&i<256&&found<10;++i){
                     if(!memory->readable(esp+i*4,4))break;
                     uint32_t value=read32(esp+i*4);
-                    if(value>=0x401000u&&value<0x75d000u&&recomp_lookup(value)==nullptr){callers+=" "+hex(value);++found;}
+                    if(value>=0x401000u&&value<0x75d000u&&recomp_lookup(value)==nullptr){size_t l=strlen(callers);snprintf(callers+l,sizeof callers-l," %08x",value);++found;}
                 }
-                NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","  thread %u at %08x %s %08x%s; holds:%s; stack:%s",id,trace->func.load(),
-                    wait?wait:"running",wait?handle:0u,detail.c_str(),held.empty()?" none":held.c_str(),callers.c_str());
+                reportLine(fd,"  thread %u at %08x %s %08x%s; holds:%s; stack:%s",id,trace->func.load(),
+                    wait?wait:"running",wait?handle:0u,detail,held[0]?held:" none",callers);
             }
     }
+}
+// A crash (SIGSEGV and the like, from the game's lifted code or ours): what it was doing written to CRASH_REPORT.TXT
+// and the log before the default handler takes over (Android's own report), as the phone gives none of the guest's.
+static struct sigaction oldCrashActions[NSIG];
+static std::atomic<int> inCrash{0};
+static void hostSymbol(int fd,const char* what,uintptr_t pc){
+    Dl_info info{};
+    if(pc&&dladdr(reinterpret_cast<void*>(pc),&info)&&info.dli_fname)
+        reportLine(fd,"  %s %p: %s+0x%lx (%s)",what,reinterpret_cast<void*>(pc),info.dli_sname?info.dli_sname:"?",
+            static_cast<unsigned long>(pc-reinterpret_cast<uintptr_t>(info.dli_sname?info.dli_saddr:info.dli_fbase)),info.dli_fname);
+    else reportLine(fd,"  %s %p",what,reinterpret_cast<void*>(pc));
+}
+static void crashHandler(int sig,siginfo_t* info,void* context){
+    if(inCrash.exchange(1)){sigaction(sig,&oldCrashActions[sig],nullptr);return;}
+    int fd=openReport(crashReportPath,"crash");
+    uintptr_t fault=reinterpret_cast<uintptr_t>(info?info->si_addr:nullptr),base=static_cast<uintptr_t>(g_mem_base);
+    reportLine(fd,"Crash: signal %d (code %d) at %p, host thread %d",sig,info?info->si_code:0,reinterpret_cast<void*>(fault),gettid());
+    if(base&&fault>=base&&fault-base<0x100000000ull)reportLine(fd,"  the guest's address %08x",static_cast<unsigned>(fault-base));
+#if defined(__aarch64__)
+    if(context){auto* uc=static_cast<ucontext_t*>(context);hostSymbol(fd,"pc",uc->uc_mcontext.pc);hostSymbol(fd,"lr",uc->uc_mcontext.regs[30]);}
+#endif
+    uint32_t flow=memory&&memory->readable(0x008654a4u,4)?read32(0x008654a4u):0;
+    reportLine(fd,"  guest: function %08x, eax %08x ecx %08x edx %08x ebx %08x esp %08x ebp %08x esi %08x edi %08x; flow %u, frames shown %u",
+        g_cur_func,g_eax,g_ecx,g_edx,g_ebx,g_esp,g_ebp,g_esi,g_edi,flow,presentCount.load());
+    char callers[260]="";
+    for(unsigned i=0,found=0;memory&&i<512&&found<16;++i){
+        if(!memory->readable(g_esp+i*4,4))break;
+        uint32_t value=read32(g_esp+i*4);
+        if(value>=0x401000u&&value<0x75d000u&&recomp_lookup(value)==nullptr){size_t l=strlen(callers);snprintf(callers+l,sizeof callers-l," %08x",value);++found;}
+    }
+    reportLine(fd,"  guest stack (return addresses):%s",callers[0]?callers:" none");
+    reportLine(fd,"guest threads:");
+    dumpGuestThreads(fd,true);
+    if(fd>=0)close(fd);
+    sigaction(sig,&oldCrashActions[sig],nullptr);           // the default (Android's report) when the fault comes again
+    if(sig==SIGABRT)raise(sig);
+}
+extern "C" int nfs_save_host_path(const char* rel,char* out,size_t n);
+static void installCrashHandler(){
+    nfs_save_host_path("NFS Underground 2\\CRASH_REPORT.TXT",crashReportPath,sizeof crashReportPath);
+    nfs_save_host_path("NFS Underground 2\\STALL_REPORT.TXT",stallReportPath,sizeof stallReportPath);
+    static std::vector<char> stack(128*1024);
+    stack_t ss{};ss.ss_sp=stack.data();ss.ss_size=stack.size();sigaltstack(&ss,nullptr);
+    struct sigaction sa{};sa.sa_sigaction=crashHandler;sa.sa_flags=SA_SIGINFO|SA_ONSTACK;sigemptyset(&sa.sa_mask);
+    for(int sig:{SIGSEGV,SIGBUS,SIGILL,SIGFPE,SIGABRT})sigaction(sig,&sa,&oldCrashActions[sig]);
+    NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Crash reports: %s",crashReportPath);
 }
 void yieldGuestMachine(unsigned milliseconds=0,std::chrono::steady_clock::time_point deadline={}) {
     if(!machineLease||!machineLease->owns_lock())throw GuestStop("Guest scheduler ownership missing");
@@ -937,6 +1009,7 @@ std::string connectGuestRuntime(const char* executable) {
         memory=std::make_unique<GuestMemory>();
         hostGameRoot=std::string(executable); hostGameRoot=hostGameRoot.substr(0,hostGameRoot.find_last_of('/'));
         g_mem_base=reinterpret_cast<ptrdiff_t>(memory->base());
+        installCrashHandler();
         testGuestHeaps(*memory);
         NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Guest heaps passed ownership, realloc preservation, zero tail, in-place failure and reuse checks");
         heaps=std::make_unique<GuestHeaps>(*memory);

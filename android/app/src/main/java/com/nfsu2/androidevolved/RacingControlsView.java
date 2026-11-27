@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); int[] paintGet(); int paintSet(int has,int rgb,int finish); void paintSave(); void lookAround(int x,int y); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); int[] paintGet(); int paintSet(int has,int rgb,int finish); void paintSave(); void lookAround(int x,int y); String diagnostics(); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -1013,6 +1013,47 @@ final class RacingControlsView extends View {
     /** The gearbox whine (src/runtime/whine.c). */
     boolean whineOn() {return layouts.getBoolean("whine",false);}
     boolean lookOn() {return layouts.getBoolean("lookstick",true);}
+    /**
+     * Envoyer le journal: the last crash's and the last loading stall's reports (guest_runtime.cpp) and the app's log
+     * (its own lines, the crashed runs' too), written to Download/UNDRGND2 and offered to share.
+     */
+    private void sendJournal() {
+        final Context c=getContext();
+        Toast.makeText(c,"Journal : enregistrement…",Toast.LENGTH_SHORT).show();
+        new Thread(()->{
+            String result;android.net.Uri uri=null;
+            try{
+                StringBuilder b=new StringBuilder();
+                b.append("UNDRGND2 NFSU2 - journal du ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",java.util.Locale.FRANCE).format(new java.util.Date())).append('\n');
+                b.append("Appareil : ").append(android.os.Build.MANUFACTURER).append(' ').append(android.os.Build.MODEL).append(", Android ").append(android.os.Build.VERSION.RELEASE).append('\n');
+                try{b.append("Version : ").append(c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName).append("\n\n");}catch(Exception ignored){b.append('\n');}
+                if(photo!=null)b.append(photo.diagnostics()).append('\n');
+                b.append("=== Journal (logcat) ===\n");
+                Process p=Runtime.getRuntime().exec(new String[]{"logcat","-d","-v","threadtime","-b","main,crash"});
+                try(java.io.BufferedReader r=new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))){
+                    String l;while((l=r.readLine())!=null)b.append(l).append('\n');
+                }
+                String name="NFSU2_journal_"+new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",java.util.Locale.FRANCE).format(new java.util.Date())+".txt";
+                android.content.ContentValues v=new android.content.ContentValues();
+                v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME,name);
+                v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE,"text/plain");
+                v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,android.os.Environment.DIRECTORY_DOWNLOADS+"/UNDRGND2");
+                uri=c.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,v);
+                if(uri==null)throw new java.io.IOException("Téléchargements inaccessibles");
+                try(java.io.OutputStream o=c.getContentResolver().openOutputStream(uri)){if(o==null)throw new java.io.IOException("écriture impossible");o.write(b.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+                result="Journal enregistré : Téléchargements/UNDRGND2/"+name;
+            }catch(Exception e){result="Journal : échec ("+e.getMessage()+")";uri=null;}
+            final String msg=result;final android.net.Uri file=uri;
+            post(()->{
+                Toast.makeText(c,msg,Toast.LENGTH_LONG).show();
+                if(file==null)return;
+                android.content.Intent send=new android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(android.content.Intent.EXTRA_STREAM,file).putExtra(android.content.Intent.EXTRA_SUBJECT,"Journal UNDRGND2")
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try{c.startActivity(android.content.Intent.createChooser(send,"Envoyer le journal").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));}catch(Exception ignored){}
+            });
+        },"journal").start();
+    }
     /** The look stick (src/runtime/look.c): where the thumb is, x right and y up, thousandths; 0 0 let go. */
     private void lookStick(Control c,float x,float y) {
         c.steering=Math.max(-1,Math.min(1,(x/scale-c.area.centerX())/(c.area.width()/2)));
@@ -1434,6 +1475,7 @@ final class RacingControlsView extends View {
         });
         menuRow(rows,"Stance (carrossage, voie, pneus)","Réglage",0,this::showStance);
         menuRow(rows,"Peinture perso (nuancier, code couleur)","Couleur",0,this::showPaint);
+        menuRow(rows,"Envoyer le journal (plantages, chargements bloqués)","Enregistrer",0,this::sendJournal);
         menuRow(rows,"Joystick pour regarder autour",lookOn()?"Affiché":"Caché",0,()->{
             boolean on=!lookOn();layouts.edit().putBoolean("lookstick",on).apply();layoutControls();
             Toast.makeText(getContext(),on?"Joystick regarder autour : affiché, à gauche des pédales":"Joystick regarder autour : caché",Toast.LENGTH_SHORT).show();
