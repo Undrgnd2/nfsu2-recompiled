@@ -10,7 +10,13 @@
  *  - the game's allocator (0x440390, cdecl (size, name, line, flags: the pool in the low bits) -> memory, 0 when the
  *    pool has no room): its callers mostly write through what it gives (the bPNode slot pool's growth 0x440D40, then
  *    the list push 0x479130 links node 0: crash reports at guest addresses 0x0..0x10). A refusal is logged (pool,
- *    size, the caller's return address), the first ones of each pool, so a crash after it names the cause.
+ *    size, the caller's return address), the first ones of each pool, so a crash after it names the cause;
+ *  - a car's driver change (0x5F46A0, thiscall car-driver object, 1 argument the driver type 0..5, ret 4): it deletes
+ *    the old driver (+0x34 set to 0), makes the new one through a jump table of 6 types (0x5F493C), then writes the
+ *    new driver's +4 (0x5F4905). A type past the table (unsigned > 5) makes none, the write goes to address 4: a crash
+ *    report of 2026-11-28 (OnePlus 6T, free roam, a write at guest 00000004 in 0x5F46A0, no allocation refused). The
+ *    type is worked out as the function does ([0x8021AC], the +0x5C0 remap to 0 or 4); a change to a type past the
+ *    table is skipped (the old driver kept) and logged with its caller.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -22,10 +28,12 @@
 int nfs_guest_readable(uint32_t va, uint32_t bytes);
 void sub_00609CE0_orig(void);
 void sub_00440390_orig(void);
+void sub_005F46A0_orig(void);
 
 #define G_FLOW    0x008654a4u
 #define G_LOADER  0x008650b8u
 #define G_RACE    0x00890118u
+#define G_FORCE_DRIVER 0x008021acu   /* -1 unless a debug driver type is forced */
 
 static uint32_t rd(uint32_t va) { return va >= 0x10000u && nfs_guest_readable(va, 4) ? MEM32(va) : 0; }
 
@@ -50,5 +58,23 @@ void nfs_guard_ov_world_update(void) {
              rd(G_FLOW), ld, ld ? rd(ld + 0x1cu) : 0u, rd(G_RACE));
     }
     g_esp += 4u + 4u;                                   /* (ret 4) */
+}
+/* wraps 0x5F46A0: a car's driver change to a type the function has no case for, skipped */
+void nfs_guard_ov_driver(void) {
+    uint32_t self = g_ecx, ret = MEM32(g_esp), type = MEM32(g_esp + 4u), forced = rd(G_FORCE_DRIVER);
+    if (self && nfs_guest_readable(self, 0x5c4)) {
+        uint32_t owner = MEM32(self + 0x14u);
+        if (forced != 0xffffffffu && owner && nfs_guest_readable(owner, 0x904) && MEM32(owner + 4u) == 1u && !MEM8(owner + 0x900u))
+            type = forced;
+        if (type != MEM32(self + 0x28u) && type > 5u && (MEM8(self + 0x5c0u) || type == 0u || type == 4u)) {
+            static unsigned said;
+            if (said++ < 20)
+                LOGI("Guard: a car's driver change to type %u (no such type, from %08x, driver %08x now type %u): skipped",
+                     type, ret, self, MEM32(self + 0x28u));
+            g_esp += 4u + 4u;                           /* (ret 4) */
+            return;
+        }
+    }
+    sub_005F46A0_orig();
 }
 #endif

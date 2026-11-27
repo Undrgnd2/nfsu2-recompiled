@@ -120,6 +120,7 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     /* guards against the game's null pointers, src/runtime/guards.c */
     { 0x00609CE0u, nfs_guard_ov_world_update },
     { 0x00440390u, nfs_guard_ov_bmalloc },
+    { 0x005F46A0u, nfs_guard_ov_driver },
     /* the player's car painted any colour, src/runtime/paint.c */
     { 0x0061D790u, nfs_paint_ov_compose },
     /* the player's own license plate, src/runtime/plates.c */
