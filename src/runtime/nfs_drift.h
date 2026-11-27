@@ -142,6 +142,9 @@ void nfs_paint_save(void);                  /* any thread: kept in PAINT.TXT */
 void nfs_paint_ov_compose(void);            /* wraps 0x61D790, the skin composed */
 void nfs_paint_draw_begin(uint32_t ri);     /* photo.c's 0x620AE0 and 0x6162E0 wraps */
 void nfs_paint_draw_end(void);
+void nfs_look_stick(int x, int y);          /* any thread: the touch controls' look stick, thousandths (x + right, y + up) */
+void nfs_look_view(uint32_t view);          /* photo.c's 0x5C7EC0 wrap: the camera turned round the car */
+void nfs_look_frame(void);                  /* guest thread, after each Present: the camera back */
 void nfs_paint_hook(uint32_t va);           /* widescreen.c: hooks 0x61D87D, 0x61D99A, the skin's paint colours packed */
 /* The player's own license plate (plates.c, plate_image.c). */
 void nfs_plates_set(const char *text);      /* any thread: up to 8 capitals and digits, "" the game's plate */

@@ -440,6 +440,7 @@ void nfs_photo_ov_view(void) {
             if (P.on && P.roll != 0.f) view_roll(cam, P.roll * DEG);
         } else cam = 0;
     }
+    if (!cam) nfs_look_view(view);                             /* (look.c: the look stick turns the view round the car) */
     sub_005C7EC0_orig();
     if (cam) { memcpy((void *)ADDR(cam), keep, sizeof keep); MEM16(cam + CAM_FOV) = keep_fov; }
 }

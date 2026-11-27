@@ -27,7 +27,7 @@ final class RacingControlsView extends View {
     /** Touches outside every control drive the game's mouse: x/y as fractions of the view, phase 0 down, 1 move, 2 up. */
     interface Pointer { void touch(float x, float y, int phase); }
     // Special controls that do not map to a DirectInput scan code.
-    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8, TELEPORT = -40;
+    private static final int MODE = -1, TEXT = -2, STICK = -3, EDIT = -5, STEERMODE = -6, HYD_LIFT = -7, HYD_BOUNCE = -8, TELEPORT = -40, LOOK = -41;
     /** The hydraulics' keys (the game's Pressurize and Bounce: H and J), held while their button is on. */
     private static final int KEY_LIFT = 0x23, KEY_BOUNCE = 0x24;
     /** Photo mode (photo.c): its button, and its own controls while it is on. */
@@ -37,7 +37,7 @@ final class RacingControlsView extends View {
     private static final int PHOTO_OPEN = 1, PHOTO_MOVE = 2, PHOTO_LIFT = 3, PHOTO_DRAG = 4, PHOTO_ZOOM = 5, PHOTO_ROLL = 6,
             PHOTO_MODE = 7, PHOTO_RESET = 8, PHOTO_PATH = 9, PHOTO_CARS = 10;
     private static final int PATH_CLEAR = 0, PATH_ADD = 1, PATH_PLAY = 2, PATH_STOP = 3;
-    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); int[] paintGet(); int paintSet(int has,int rgb,int finish); void paintSave(); }
+    interface Photo { void input(int cmd, int a, int b); void shot(); void look(boolean live, float[] values); void tone(float exposure, float white); int cheat(int cmd, int arg); int teleport(int what); int[] radarList(); String carList(); int maxPerf(int slot); int[] stanceGet(); int stanceSet(int has,int fc,int rc,int fo,int ro,int tw); void stanceSave(); int[] paintGet(); int paintSet(int has,int rgb,int finish); void paintSave(); void lookAround(int x,int y); }
     private Photo photo;
     private int[] photoState = new int[6];
     private boolean photoOn;
@@ -172,6 +172,8 @@ final class RacingControlsView extends View {
             // Pilote auto: over the cruise control's, offered in career free roam (autopilot.c)
             addU(w-R-12-60+2,h-B-160-60-8-56-8-56,56,56,ROUND,"autopilot",0xF9,-1,0);controls.get(controls.size()-1).hidden=autopilot[1]==0;
             addCruiseSteps(w,h-B);
+            // Regarder autour: a stick left of the pedals turns the view round the car (look.c)
+            if(lookOn())add(w-R-92-84-12-110,h-B-110,110,110,WHEEL,"stick",LOOK,0);
         } else {
             final float k=52;
             add(L,T,48,"settings",EDIT);
@@ -1010,6 +1012,13 @@ final class RacingControlsView extends View {
     boolean raceMusic() {return layouts.getBoolean("racemusic",false);}
     /** The gearbox whine (src/runtime/whine.c). */
     boolean whineOn() {return layouts.getBoolean("whine",false);}
+    boolean lookOn() {return layouts.getBoolean("lookstick",true);}
+    /** The look stick (src/runtime/look.c): where the thumb is, x right and y up, thousandths; 0 0 let go. */
+    private void lookStick(Control c,float x,float y) {
+        c.steering=Math.max(-1,Math.min(1,(x/scale-c.area.centerX())/(c.area.width()/2)));
+        c.steerY=Math.max(-1,Math.min(1,(y/scale-c.area.centerY())/(c.area.height()/2)));
+        if(photo!=null)photo.lookAround(Math.round(c.steering*1000),Math.round(-c.steerY*1000));
+    }
     /** The cinema camera while the autopilot drives (src/runtime/cinema.c). */
     boolean cinemaOn() {return layouts.getBoolean("cinema",true);}
     /** The car's own license plate (src/runtime/plates.c): up to 8 capitals and digits, "" the game's. */
@@ -1425,6 +1434,10 @@ final class RacingControlsView extends View {
         });
         menuRow(rows,"Stance (carrossage, voie, pneus)","Réglage",0,this::showStance);
         menuRow(rows,"Peinture perso (nuancier, code couleur)","Couleur",0,this::showPaint);
+        menuRow(rows,"Joystick pour regarder autour",lookOn()?"Affiché":"Caché",0,()->{
+            boolean on=!lookOn();layouts.edit().putBoolean("lookstick",on).apply();layoutControls();
+            Toast.makeText(getContext(),on?"Joystick regarder autour : affiché, à gauche des pédales":"Joystick regarder autour : caché",Toast.LENGTH_SHORT).show();
+        });
         menuRow(rows,"Plaque d'immatriculation",plateText().isEmpty()?"Celle du jeu":plateText(),0,this::showPlate);
         menuRow(rows,"Dégâts visuels (Crashing Foreign Cars)",damageOn()?"Activés":"Désactivés",0,()->{
             boolean on=!damageOn();layouts.edit().putBoolean("damage",on).apply();
@@ -1577,6 +1590,7 @@ final class RacingControlsView extends View {
     private void release(Control c) { if(c!=null && --c.held==0) {
         lift(c.scan);lift(c.scan2);
         if(c.scan==STICK) {c.steering=0;keys.set(0xcb,false);keys.set(0xcd,false);}
+        if(c.scan==LOOK) {c.steering=0;c.steerY=0;if(photo!=null)photo.lookAround(0,0);}
     } }
     private void steer(Control c,float x) {
         c.steering=Math.max(-1,Math.min(1,(x/scale-c.area.centerX())/(c.area.width()/2)));
@@ -1613,15 +1627,17 @@ final class RacingControlsView extends View {
         if(action==MotionEvent.ACTION_DOWN)releaseAll();
         else releaseLiftedFingers(e);
         if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_POINTER_DOWN) {
-            Control c=hit(e.getX(index),e.getY(index));if(c!=null&&c.scan==STICK&&c.held>0)c=null;
+            Control c=hit(e.getX(index),e.getY(index));if(c!=null&&(c.scan==STICK||c.scan==LOOK)&&c.held>0)c=null;
             if(c==null&&pointerId<0&&hit(e.getX(index),e.getY(index))==null){pointerId=id;pointerTouch(e.getX(index),e.getY(index),0);}
             release(fingers.put(id,c));hold(c);if(c!=null&&c.scan==STICK)steer(c,e.getX(index));
+            if(c!=null&&c.scan==LOOK)lookStick(c,e.getX(index),e.getY(index));
         } else if(action==MotionEvent.ACTION_MOVE) {
             for(int i=0;i<e.getPointerCount();++i) {
                 int pointer=e.getPointerId(i);
                 if(pointer==pointerId){pointerTouch(e.getX(i),e.getY(i),1);continue;}
                 Control old=fingers.get(pointer),next=hit(e.getX(i),e.getY(i));
                 if(old!=null&&old.scan==STICK) {steer(old,e.getX(i));continue;}
+                if(old!=null&&old.scan==LOOK) {lookStick(old,e.getX(i),e.getY(i));continue;}
                 // Menu-style buttons do not slide; pedals and arrows follow the thumb.
                 if(old!=null&&old.scan<0)continue;
                 if(next!=null&&(next.scan==STICK&&next.held>0||next.scan<0&&next.scan!=STICK))next=null;
