@@ -203,6 +203,46 @@ std::atomic<uint32_t> presentCount{0};
 int64_t steadyMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 // The last guest file opened (guest_files.inc): a loading screen that keeps presenting but opens nothing is stuck.
 std::atomic<int64_t> lastGuestFileMs{0};
+// The last files opened, for the loading-stall report: what the game was loading when it stopped.
+struct RecentGuestFile{char name[48];int64_t ms;uint32_t thread;};
+static RecentGuestFile recentGuestFiles[16];static std::atomic<unsigned> recentGuestFileCount{0};
+static void noteGuestFile(const char* name){
+    auto& r=recentGuestFiles[recentGuestFileCount.load()%16u];snprintf(r.name,sizeof r.name,"%s",name);r.ms=steadyMs();r.thread=guestThreadId;
+    recentGuestFileCount.fetch_add(1);
+}
+// The loading-stall profile: which lifted functions the presenting thread keeps entering while the loading is
+// stuck (checkGuestProgress samples g_cur_func on loop back edges and imports for a few seconds).
+static void reportLine(int fd,const char* fmt,...);
+static std::atomic<bool> stallProfiling{false};
+static uint32_t stallSampleVa[1024],stallSampleHits[1024],stallSampleTotal;
+static void stallSample(uint32_t va){
+    ++stallSampleTotal;
+    for(uint32_t i=0,h=(va*2654435761u)>>22;i<1024;++i){
+        uint32_t k=(h+i)&1023u;
+        if(stallSampleVa[k]==va){++stallSampleHits[k];return;}
+        if(!stallSampleVa[k]){stallSampleVa[k]=va;stallSampleHits[k]=1;return;}
+    }
+}
+static void stallProfile(int fd){
+    std::memset(stallSampleVa,0,sizeof stallSampleVa);std::memset(stallSampleHits,0,sizeof stallSampleHits);stallSampleTotal=0;
+    stallProfiling.store(true);std::this_thread::sleep_for(std::chrono::seconds(3));stallProfiling.store(false);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    reportLine(fd,"Presenting thread over 3 s (%u samples), the functions it keeps entering:",stallSampleTotal);
+    for(int n=0;n<40;++n){
+        uint32_t best=1024;for(uint32_t k=0;k<1024;++k)if(stallSampleHits[k]&&(best==1024||stallSampleHits[k]>stallSampleHits[best]))best=k;
+        if(best==1024)break;
+        reportLine(fd,"  %08x x%u",stallSampleVa[best],stallSampleHits[best]);stallSampleHits[best]=0;
+    }
+    unsigned count=recentGuestFileCount.load();int64_t now=steadyMs();
+    reportLine(fd,"Last files opened:");
+    for(unsigned i=count>16?count-16:0;i<count;++i){auto& r=recentGuestFiles[i%16u];
+        reportLine(fd,"  -%lld.%01lld s thread %u %s",static_cast<long long>((now-r.ms)/1000),static_cast<long long>((now-r.ms)/100%10),r.thread,r.name);}
+    if(memory&&memory->readable(0x008650b8u,4)){
+        uint32_t loader=read32(0x008650b8u);char line[400]="";
+        if(loader&&memory->readable(loader,0x60))for(uint32_t o=0;o<0x60;o+=4){size_t l=strlen(line);snprintf(line+l,sizeof line-l," %08x",read32(loader+o));}
+        reportLine(fd,"Loader %08x:%s",loader,line);
+    }
+}
 static void dumpGuestThreads(int fd=-1,bool tryLock=false);
 // A guest stack word for the reports: GuestMemory's committed ranges do not list the guest stacks, so a word is
 // probed with process_vm_readv on this process (a fault there is an error, never a signal: safe in the crash handler).
@@ -249,6 +289,7 @@ void startStallWatch(){
                 int fd=openReport(stallReportPath,"loading stall");
                 reportLine(fd,"Guest loading stall: still loading, no file opened for %lld s, frames shown %u; guest threads:",static_cast<long long>(fileIdle/1000),presentCount.load());
                 dumpGuestThreads(fd);
+                stallProfile(fd);
                 if(fd>=0)close(fd);
                 continue;
             }
@@ -343,6 +384,7 @@ thread_local bool renderThread=false;
 // Render-thread slice handovers and the time spent getting the machine back.
 uint64_t renderYields=0;std::chrono::nanoseconds renderWait{};
 void checkGuestProgress() {
+    if(stallProfiling.load(std::memory_order_relaxed)&&renderThread)stallSample(g_cur_func);
     while(guestPaused.load()&&!stopRequested.load())yieldGuestMachine(20);
     if(stopRequested.load())throw GuestStop("Guest execution cancelled");
     // Imports and lifted back edges can reach this hook many times per frame.
