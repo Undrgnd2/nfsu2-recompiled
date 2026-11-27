@@ -64,3 +64,4 @@
 0x005C5930  plates: a model into the render lists, our license plate in its texture table while our car is drawn (plates.c)
 0x0044D420  cinema: the debug camera mover's update, the shot placed right before it from the car as it is (cinema.c)
 0x0061D790  paint: the car skin composed, the player's own colour as its base paint's (paint.c)
+0x00609CE0  guards: the world's update, skipped while [0x890080] has no world (guards.c)
