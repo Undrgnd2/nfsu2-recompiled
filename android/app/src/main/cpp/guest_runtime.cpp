@@ -195,16 +195,34 @@ std::atomic<int64_t> lastPresentMs{0};
 // Frames shown (each Present): the touch controls' FPS counter (GameActivity, nativeFrameCount).
 std::atomic<uint32_t> presentCount{0};
 int64_t steadyMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+// The last guest file opened (guest_files.inc): a loading screen that keeps presenting but opens nothing is stuck.
+std::atomic<int64_t> lastGuestFileMs{0};
+static void dumpGuestThreads();
 void startStallWatch(){
     static std::once_flag started;
     std::call_once(started,[]{std::thread([]{
-        int64_t reportedFor=0;
+        int64_t reportedFor=0,reportedLoad=0;
         while(!stopRequested.load()){
             std::this_thread::sleep_for(std::chrono::seconds(2));
             int64_t last=lastPresentMs.load(),idle=steadyMs()-last;
+            // the game's flow [0x8654A4]: 5 while a race or free roam loads
+            uint32_t flow=memory&&memory->readable(0x008654a4u,4)?read32(0x008654a4u):0;
+            int64_t file=lastGuestFileMs.load(),fileIdle=steadyMs()-file;
+            if(!guestPaused.load()&&flow==5u&&idle<2000&&file&&fileIdle>=15000&&reportedLoad!=file){
+                reportedLoad=file;
+                NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Guest loading stall: still loading, no file opened for %lld s; guest threads:",static_cast<long long>(fileIdle/1000));
+                dumpGuestThreads();
+                continue;
+            }
             if(guestPaused.load()||idle<12000||reportedFor==last)continue;
             reportedFor=last;
             NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Guest stall: no frame for %lld s; guest threads:",static_cast<long long>(idle/1000));
+            dumpGuestThreads();
+        }
+    }).detach();});
+}
+static void dumpGuestThreads(){
+    {
             std::lock_guard<std::mutex> lock(threadTracesMutex);
             for(auto& [id,trace]:threadTraces){
                 const char* wait=trace->wait.load();uint32_t handle=trace->handle.load();
@@ -222,8 +240,7 @@ void startStallWatch(){
                 NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","  thread %u at %08x %s %08x%s; holds:%s; stack:%s",id,trace->func.load(),
                     wait?wait:"running",wait?handle:0u,detail.c_str(),held.empty()?" none":held.c_str(),callers.c_str());
             }
-        }
-    }).detach();});
+    }
 }
 void yieldGuestMachine(unsigned milliseconds=0,std::chrono::steady_clock::time_point deadline={}) {
     if(!machineLease||!machineLease->owns_lock())throw GuestStop("Guest scheduler ownership missing");

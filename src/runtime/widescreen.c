@@ -175,6 +175,7 @@ void recomp_hook(uint32_t va) {
 #ifdef NFS_DRIFT_MODE
     if (va == 0x00482279u || va == 0x00471B95u || va == 0x00482287u || va == 0x00471B7Au || va == 0x00471B8Cu) { nfs_drift_hook(va); return; }
     if (va == 0x00547689u) { nfs_garage_hook_shop(); return; }
+    if (va == 0x0061D87Du || va == 0x0061D99Au) { nfs_paint_hook(va); return; }
     if (nfs_damage_hook(va)) return;
     /* nfsu2-web's sndlead.c (MIT, th0mk): the sound thread's margin (how late its wake-ups have been, written ahead of
      * the mixer) falls back every 300 wake-ups (3 s), not 3000 (30 s): a load's long gaps no longer keep every sound

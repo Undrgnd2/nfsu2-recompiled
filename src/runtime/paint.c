@@ -5,17 +5,19 @@
  * How the game paints a car's body (SPEED2.EXE):
  *   - the body's colour is in its skin texture, which the game composes from the ride's parts (0x61D790, cdecl, the
  *     RideInfo: called once per car load from 0x633C10); its base colour is the base paint part's (ride +0x68C, a
- *     part of kind 0x30) RED, GREEN and BLUE attributes (0..255), read with 0x60FEF0 (thiscall part (hash, 0) -> its
- *     { hash, value }), packed with its GLOSS as A8B8G8R8; the body coloured parts (ride +0x590 slots 0x44..0x4C)
- *     read the same part's when they carry it;
+ *     part of kind 0x30) RED, GREEN and BLUE attributes (0..255), packed with its GLOSS as A8B8G8R8 (0x61D87D: eax,
+ *     stored to [esp+0x14]); the painted parts (ride +0x590 slots 0x44..0x4C, the part in esi) each packed the same
+ *     way (0x61D99A: eax, stored to [esp+edi+0x50]);
  *   - the finish is a light material (the paint part's LIGHT_MATERIAL_NAME: REGPAINT*, METPAINT*, PEARL*), put in
  *     the render info's +0x384 when it is made (0x638D9E) and read from there while the car is drawn (0x620AE0).
- * So while the skin of the player's car is composed (the wrap of 0x61D790) the base paint part's RED, GREEN and
- * BLUE are ours (the wrap of 0x60FEF0 answers them from a block of ours), and while the car is drawn (photo.c's
+ * So while the skin of the player's car is composed (the wrap of 0x61D790) the packed colour of its base paint part,
+ * and of a painted part that carries that same paint, is ours (the hooks at 0x61D87D and 0x61D99A: its gloss kept;
+ * no guest memory of ours, nothing of the part database touched), and while the car is drawn (photo.c's
  * wraps of 0x620AE0 and 0x6162E0) its render info's +0x384 is the finish's material, put back after. The colour
  * shows when the car's skin is next composed: when the car loads (the garage, a shop, a race, free roam).
  * Whose car: the player's (the career's car, else Quick Race's), in the world and on the front end's screens about it
- * (plates.c says which), never in a LAN game. Kept per car beside the profiles (AppData/Local/NFS Underground 2/
+ * (plates.c says which; a front end car of the same type is composed as ours, plates.c not knowing the screen yet),
+ * never in a LAN game. Kept per car beside the profiles (AppData/Local/NFS Underground 2/
  * PAINT.TXT: profile, handle, car type, RRGGBB, finish).
  */
 #ifdef NFS_DRIFT_MODE
@@ -30,11 +32,9 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "NFSU2", __VA_ARGS__)
 
 int nfs_guest_readable(uint32_t va, uint32_t bytes);
-uint32_t nfs_guest_call(uint32_t va, uint32_t ecx, const uint32_t *args, unsigned count, unsigned cleanup);
 int nfs_save_host_path(const char *rel, char *out, size_t n);
 int nfs_plates_fe_ours(void);
 void sub_0061D790_orig(void);
-void sub_0060FEF0_orig(void);
 
 #define G_GAMEMODE     0x00850078u
 #define G_FLOW         0x008654a4u
@@ -44,7 +44,6 @@ void sub_0060FEF0_orig(void);
 #define G_PROFILE_NAME 0x0083a9e0u
 #define G_CARTYPES     0x008a1cccu
 #define G_LM_LIST      0x008358c0u   /* the light materials (a material's link at its +4, its name hash at +0xC) */
-#define FN_NEW         0x00575620u
 #define CAR_RENDER     0x554u
 #define RI_CAR         0u
 #define RI_RIDE        4u
@@ -54,9 +53,6 @@ void sub_0060FEF0_orig(void);
 #define CARTYPE_SZ     0x890u
 #define CARTYPE_HASH   0xd0u
 #define REC_TYPE       0x20u
-#define H_RED          0x0000d99au
-#define H_GREEN        0x02ddc8f0u
-#define H_BLUE         0x00136707u
 #define PAINT_FILE     "NFS Underground 2\\PAINT.TXT"
 #define MAX_ENTRIES    128
 #define FINISHES       5             /* 0 the paint's own, then gloss, metallic, pearl, matte */
@@ -174,7 +170,8 @@ static int ours(uint32_t ride, uint32_t ri, Entry *e) {
     int got = 0;
     pthread_mutex_lock(&s_lock);
     if (mine(e) && ride_type(ride) == e->type) {
-        if (rd(G_FLOW) == 3u) got = nfs_plates_fe_ours();          /* the front end: the car its screens are about */
+        if (rd(G_FLOW) == 3u) got = ri ? nfs_plates_fe_ours() : 1;  /* the front end: the car its screens are about (its
+                                                                      skin is composed before plates.c knows the screen) */
         else {
             uint32_t pl = rd(G_PLAYER1), car = pl ? rd(pl + 4u) : 0, pri = car ? rd(car + CAR_RENDER) : 0;
             if (ri) got = car && rd(ri + RI_CAR) == car;
@@ -186,37 +183,25 @@ static int ours(uint32_t ride, uint32_t ri, Entry *e) {
 }
 
 /* ---- the skin: the base paint's colour ---- */
-static struct { int on; uint32_t part, attr; } S;
-static uint32_t attr_block(void) {
-    static uint32_t blk;
-    if (!blk) {
-        uint32_t n = 3u * 8u;
-        blk = nfs_guest_call(FN_NEW, 0, &n, 1, 4);
-        if (!ok(blk, n)) blk = 0;
-    }
-    return blk;
-}
+static struct { int on, hits; uint32_t part, abgr, rgb; } S;
 /* wraps 0x61D790 (cdecl, the RideInfo): the skin composed, our colour as the base paint's */
 void nfs_paint_ov_compose(void) {
     uint32_t ride = rd(g_esp + 4u);
     Entry e;
-    if (ok(ride, RIDE_PAINT + 4u) && MEM32(ride + RIDE_PAINT) && ours(ride, 0, &e) && (S.attr = attr_block())) {
-        const uint32_t h[3] = { H_RED, H_GREEN, H_BLUE }, v[3] = { e.rgb >> 16 & 0xffu, e.rgb >> 8 & 0xffu, e.rgb & 0xffu };
-        for (int i = 0; i < 3; i++) { MEM32(S.attr + 8u * (uint32_t)i) = h[i]; MEM32(S.attr + 8u * (uint32_t)i + 4u) = v[i]; }
-        S.part = MEM32(ride + RIDE_PAINT); S.on = 1;
-        LOGI("Paint: the player's car's skin composed in #%06X", e.rgb);
+    if (ok(ride, RIDE_PAINT + 4u) && MEM32(ride + RIDE_PAINT) && ours(ride, 0, &e)) {
+        S.part = MEM32(ride + RIDE_PAINT); S.abgr = (e.rgb & 0xffu) << 16 | (e.rgb & 0xff00u) | (e.rgb >> 16 & 0xffu);
+        S.rgb = e.rgb; S.on = 1; S.hits = 0;
+        LOGI("Paint: composing the player's car's skin (ride %08x, flow %u, paint part %08x)", ride, rd(G_FLOW), S.part);
     }
     sub_0061D790_orig();
+    if (S.on) LOGI("Paint: the player's car's skin composed in #%06X (%d colours ours)", S.rgb, S.hits);
     S.on = 0;
 }
-/* wraps 0x60FEF0 (thiscall part (hash, after) -> its attribute): the base paint's RED, GREEN, BLUE ours while composed */
-void nfs_paint_ov_attr(void) {
-    if (S.on && g_ecx == S.part && !MEM32(g_esp + 8u)) {
-        uint32_t h = MEM32(g_esp + 4u);
-        int i = h == H_RED ? 0 : h == H_GREEN ? 1 : h == H_BLUE ? 2 : -1;
-        if (i >= 0) { g_eax = S.attr + 8u * (uint32_t)i; g_esp += 4u + 8u; return; }
-    }
-    sub_0060FEF0_orig();
+/* widescreen.c's recomp_hook: 0x61D87D the base paint packed (eax), 0x61D99A a painted part's (eax, its part in esi) */
+void nfs_paint_hook(uint32_t va) {
+    if (!S.on || (va == 0x0061D99Au && g_esi != S.part)) return;
+    g_eax = (g_eax & 0xff000000u) | S.abgr;
+    S.hits++;
 }
 
 /* ---- the drawing: the finish's material ---- */
@@ -248,6 +233,8 @@ void nfs_paint_draw_begin(uint32_t ri) {
     uint32_t m = material(e.finish);
     if (!m) return;
     D.on = 1; D.ri = ri; D.keep = MEM32(ri + RI_PAINT_LM);
+    static uint32_t said;
+    if (said != m) { said = m; LOGI("Paint: the player's car drawn with finish %d (material %08x for %08x)", e.finish, m, D.keep); }
     MEM32(ri + RI_PAINT_LM) = m;
 }
 void nfs_paint_draw_end(void) {

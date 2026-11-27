@@ -48,3 +48,5 @@
 0x00482287  race music: music manager test al, al (a drag event?) - drag races play their songs (drift.c)
 0x00471B7A  race music: in-game mix test al, al ([0x89E7D8], a drag event) - the music channel stays up (drift.c)
 0x00471B8C  race music: in-game mix test al, al ([0x89E7D9], a drift event) - the music channel stays up (drift.c)
+0x0061D87D  paint: the skin's base colour packed (mov [esp+0x14], eax), ours for the player's car (paint.c)
+0x0061D99A  paint: a painted part's colour packed (mov [esp+edi+0x50], eax, its part in esi), ours when it is the base paint (paint.c)

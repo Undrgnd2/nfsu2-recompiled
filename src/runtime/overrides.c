@@ -119,7 +119,6 @@ static const struct { uint32_t va; nfs_override_fn fn; } k_overrides[] = {
     { 0x0044D420u, nfs_cinema_ov_mover },
     /* the player's car painted any colour, src/runtime/paint.c */
     { 0x0061D790u, nfs_paint_ov_compose },
-    { 0x0060FEF0u, nfs_paint_ov_attr },
     /* the player's own license plate, src/runtime/plates.c */
     { 0x005C5930u, nfs_plates_ov_model },
     /* crash damage on the cars, src/runtime/damage.c */
