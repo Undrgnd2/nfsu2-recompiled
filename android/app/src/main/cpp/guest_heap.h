@@ -38,6 +38,12 @@ private:
     }
 public:
     static constexpr uint32_t process=0xf0000100u;
+    // Allocations refused (no free run long enough, or a heap's maximum): the game then gets 0, and many of its
+    // callers write through it (the crash reports' "guest's address" near 0). Read by the stall watch and the
+    // crash report (guest_runtime.cpp).
+    uint32_t failures=0,lastFailBytes=0,lastFailHeap=0;
+    uint32_t largestFree() const { uint32_t m=0; for(auto& s:free_) m=std::max(m,s.second); return m; }
+    uint64_t totalFree() const { uint64_t t=0; for(auto& s:free_) t+=s.second; return t; }
     explicit GuestHeaps(GuestMemory& memory):memory_(memory) { heaps_.emplace(process,Heap{0,0,0,{}}); }
     uint32_t create(uint32_t options,uint32_t initial,uint32_t maximum) {
         if (maximum && initial>maximum) return 0;
@@ -52,9 +58,10 @@ public:
         auto h=heaps_.find(heap); if(h==heaps_.end()) return 0;
         uint64_t capacity=(uint64_t(std::max(bytes,1u))+15)&~uint64_t(15);
         if (capacity>UINT32_MAX || (h->second.maximum &&
-            (bytes>=0x7fff8u || h->second.live+capacity>h->second.maximum))) return 0;
+            (bytes>=0x7fff8u || h->second.live+capacity>h->second.maximum))) { ++failures; lastFailBytes=bytes; lastFailHeap=heap; return 0; }
         auto slot=std::find_if(free_.begin(),free_.end(),[&](auto& s){return s.second>=capacity;});
         if(slot==free_.end()) {
+            ++failures; lastFailBytes=bytes; lastFailHeap=heap;
             if ((flags|h->second.options)&4) throw std::bad_alloc();
             return 0;
         }

@@ -145,6 +145,7 @@ void nfs_paint_draw_end(void);
 void nfs_look_stick(int x, int y);          /* any thread: the touch controls' look stick, thousandths (x + right, y + up) */
 void nfs_look_view(uint32_t view);          /* photo.c's 0x5C7EC0 wrap: the camera turned round the car */
 void nfs_look_frame(void);
+void nfs_guard_ov_bmalloc(void);             /* guards.c: wraps 0x440390, a refusal logged */
 void nfs_guard_ov_world_update(void);       /* guards.c: wraps 0x609CE0, the world's update, skipped with no world */                  /* guest thread, after each Present: the camera back */
 void nfs_paint_hook(uint32_t va);           /* widescreen.c: hooks 0x61D87D, 0x61D99A, the skin's paint colours packed */
 /* The player's own license plate (plates.c, plate_image.c). */

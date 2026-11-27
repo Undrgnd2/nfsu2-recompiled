@@ -42,6 +42,7 @@
 #include <cstdarg>
 #include <dlfcn.h>
 #include <ucontext.h>
+#include <sys/uio.h>
 #include <android/log.h>
 #ifdef __ANDROID__
 #include <aaudio/AAudio.h>
@@ -203,6 +204,15 @@ int64_t steadyMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(
 // The last guest file opened (guest_files.inc): a loading screen that keeps presenting but opens nothing is stuck.
 std::atomic<int64_t> lastGuestFileMs{0};
 static void dumpGuestThreads(int fd=-1,bool tryLock=false);
+// A guest stack word for the reports: GuestMemory's committed ranges do not list the guest stacks, so a word is
+// probed with process_vm_readv on this process (a fault there is an error, never a signal: safe in the crash handler).
+static bool guestStackReadable(uint32_t va){
+    if(memory&&memory->readable(va,4))return true;
+    if(!g_mem_base)return false;
+    uint32_t word;struct iovec local{&word,4},remote{reinterpret_cast<void*>(static_cast<uintptr_t>(g_mem_base)+va),4};
+    return process_vm_readv(getpid(),&local,1,&remote,1,0)==4;
+}
+static uint32_t guestStackWord(uint32_t va){uint32_t v;std::memcpy(&v,reinterpret_cast<const void*>(static_cast<uintptr_t>(g_mem_base)+va),4);return v;}
 // The reports kept beside the profiles for the menu's "Envoyer le journal" (main.cpp nativeDiagnostics): the last
 // crash (the signal handler below) and the last loading stall, each written over the one before.
 static char crashReportPath[1100],stallReportPath[1100];
@@ -222,13 +232,18 @@ static int openReport(const char* path,const char* what){
 void startStallWatch(){
     static std::once_flag started;
     std::call_once(started,[]{std::thread([]{
-        int64_t reportedFor=0,reportedLoad=0;
+        int64_t reportedFor=0,reportedLoad=0;uint32_t reportedFailures=0;
         while(!stopRequested.load()){
             std::this_thread::sleep_for(std::chrono::seconds(2));
             int64_t last=lastPresentMs.load(),idle=steadyMs()-last;
             // the game's flow [0x8654A4]: 5 while a race or free roam loads
             uint32_t flow=memory&&memory->readable(0x008654a4u,4)?read32(0x008654a4u):0;
             int64_t file=lastGuestFileMs.load(),fileIdle=steadyMs()-file;
+            if(heaps&&heaps->failures!=reportedFailures){
+                reportedFailures=heaps->failures;
+                NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Guest heap: %u allocations refused so far, the last %u bytes (heap %08x)",
+                    reportedFailures,heaps->lastFailBytes,heaps->lastFailHeap);
+            }
             if(!guestPaused.load()&&flow==5u&&idle<2000&&file&&fileIdle>=15000&&reportedLoad!=file){
                 reportedLoad=file;
                 int fd=openReport(stallReportPath,"loading stall");
@@ -259,8 +274,8 @@ static void dumpGuestThreads(int fd,bool tryLock){
                 for(auto& slot:trace->held)if(uint32_t cs=slot.load()){size_t l=strlen(held);snprintf(held+l,sizeof held-l," %08x",cs);}
                 uint32_t esp=trace->esp.load();
                 for(unsigned i=0,found=0;memory&&i<256&&found<10;++i){
-                    if(!memory->readable(esp+i*4,4))break;
-                    uint32_t value=read32(esp+i*4);
+                    if(!guestStackReadable(esp+i*4))break;
+                    uint32_t value=guestStackWord(esp+i*4);
                     if(value>=0x401000u&&value<0x75d000u&&recomp_lookup(value)==nullptr){size_t l=strlen(callers);snprintf(callers+l,sizeof callers-l," %08x",value);++found;}
                 }
                 reportLine(fd,"  thread %u at %08x %s %08x%s; holds:%s; stack:%s",id,trace->func.load(),
@@ -293,11 +308,13 @@ static void crashHandler(int sig,siginfo_t* info,void* context){
         g_cur_func,g_eax,g_ecx,g_edx,g_ebx,g_esp,g_ebp,g_esi,g_edi,flow,presentCount.load());
     char callers[260]="";
     for(unsigned i=0,found=0;memory&&i<512&&found<16;++i){
-        if(!memory->readable(g_esp+i*4,4))break;
-        uint32_t value=read32(g_esp+i*4);
+        if(!guestStackReadable(g_esp+i*4))break;
+        uint32_t value=guestStackWord(g_esp+i*4);
         if(value>=0x401000u&&value<0x75d000u&&recomp_lookup(value)==nullptr){size_t l=strlen(callers);snprintf(callers+l,sizeof callers-l," %08x",value);++found;}
     }
     reportLine(fd,"  guest stack (return addresses):%s",callers[0]?callers:" none");
+    if(heaps)reportLine(fd,"  guest heap: %u allocations refused (the last %u bytes, heap %08x); free %llu KB, longest run %u KB",
+        heaps->failures,heaps->lastFailBytes,heaps->lastFailHeap,static_cast<unsigned long long>(heaps->totalFree()/1024),heaps->largestFree()/1024);
     reportLine(fd,"guest threads:");
     dumpGuestThreads(fd,true);
     if(fd>=0)close(fd);

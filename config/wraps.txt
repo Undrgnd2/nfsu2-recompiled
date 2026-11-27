@@ -65,3 +65,4 @@
 0x0044D420  cinema: the debug camera mover's update, the shot placed right before it from the car as it is (cinema.c)
 0x0061D790  paint: the car skin composed, the player's own colour as its base paint's (paint.c)
 0x00609CE0  guards: the world's update, skipped while [0x890080] has no world (guards.c)
+0x00440390  guards: the game's allocator bMalloc, a refusal (0) logged with its pool and caller (guards.c)
