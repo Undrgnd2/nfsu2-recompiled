@@ -210,6 +210,18 @@ static void noteGuestFile(const char* name){
     auto& r=recentGuestFiles[recentGuestFileCount.load()%16u];snprintf(r.name,sizeof r.name,"%s",name);r.ms=steadyMs();r.thread=guestThreadId;
     recentGuestFileCount.fetch_add(1);
 }
+// The last guest imports called (all threads), for the loading-stall report: what each thread last asked of the host
+// before the loading stopped. Repeats of one import by one thread from one function fold into a count, and the
+// clock and thread-local calls the game makes all the time are left out.
+struct RecentImport{uint32_t index,caller,thread,count;int64_t ms;};
+static RecentImport recentImports[256];static unsigned recentImportCount=0;
+static std::vector<bool> noisyImport;
+static void noteImport(uint32_t index){
+    if(index<noisyImport.size()&&noisyImport[index])return;
+    if(recentImportCount){auto& last=recentImports[(recentImportCount-1)%256u];
+        if(last.index==index&&last.thread==guestThreadId&&last.caller==g_cur_func){++last.count;last.ms=steadyMs();return;}}
+    recentImports[recentImportCount%256u]={index,g_cur_func,guestThreadId,1,steadyMs()};++recentImportCount;
+}
 // The loading-stall profile: which lifted functions the presenting thread keeps entering while the loading is
 // stuck (checkGuestProgress samples g_cur_func on loop back edges and imports for a few seconds).
 static void reportLine(int fd,const char* fmt,...);
@@ -238,6 +250,10 @@ static void stallProfile(int fd){
     reportLine(fd,"Last files opened:");
     for(unsigned i=count>16?count-16:0;i<count;++i){auto& r=recentGuestFiles[i%16u];
         reportLine(fd,"  -%lld.%01lld s thread %u %s",static_cast<long long>((now-r.ms)/1000),static_cast<long long>((now-r.ms)/100%10),r.thread,r.name);}
+    reportLine(fd,"Last imports (thread, function, count, how long ago):");
+    for(unsigned i=recentImportCount>48?recentImportCount-48:0;i<recentImportCount;++i){auto& r=recentImports[i%256u];
+        reportLine(fd,"  -%lld.%01lld s thread %u %s from %08x x%u",static_cast<long long>((now-r.ms)/1000),static_cast<long long>((now-r.ms)/100%10),
+            r.thread,r.index<imports.size()?imports[r.index].name.c_str():"?",r.caller,r.count);}
     if(memory&&memory->readable(0x008650b8u,4)){
         uint32_t loader=read32(0x008650b8u);char line[400]="";
         if(loader&&memory->readable(loader,0x60))for(uint32_t o=0;o<0x60;o+=4){size_t l=strlen(line);snprintf(line+l,sizeof line-l," %08x",read32(loader+o));}
@@ -1066,6 +1082,14 @@ extern "C" recomp_func_t recomp_lookup_import(uint32_t va) {
     uint32_t index=(va-importBase)/16;
     if (index>=imports.size()) return nullptr;
     lastImport=va;
+    if(noisyImport.size()!=imports.size()){
+        static const char* const noisy[]={"QueryPerformanceCounter","QueryPerformanceFrequency","GetTickCount","timeGetTime",
+            "TlsGetValue","TlsSetValue","GetLastError","SetLastError","GetCurrentThreadId","PeekMessageA","GetCursorPos",
+            "GetForegroundWindow","GetAsyncKeyState","GetKeyState"};
+        noisyImport.assign(imports.size(),false);
+        for(size_t i=0;i<imports.size();++i)for(const char* n:noisy)if(imports[i].name==n)noisyImport[i]=true;
+    }
+    noteImport(index);
     if(++imports[index].calls<=3)
         NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSU2","Guest import %s from %08x",imports[index].name.c_str(),g_cur_func);
     return imports[index].function;
