@@ -17,7 +17,8 @@ void runGuestTimers();
 std::vector<std::shared_ptr<GuestThread>> guestThreads;
 std::map<uint32_t,std::shared_ptr<GuestThread>> threadHandles;
 uint32_t nextThreadId=2,nextThreadHandle=0xf0030000;
-struct GuestEvent {bool manual,signaled;};
+// waiters: guest threads blocked on the event now (WaitForSingleObject / WaitForMultipleObjects).
+struct GuestEvent {bool manual,signaled;int waiters=0;};
 std::map<uint32_t,std::shared_ptr<GuestEvent>> eventHandles;
 std::map<std::string,std::weak_ptr<GuestEvent>> namedEvents;
 uint32_t nextEventHandle=0xf0040000;
@@ -46,7 +47,19 @@ void createEvent(){
     if(!event){event=std::make_shared<GuestEvent>(GuestEvent{arg(1)!=0,arg(2)!=0});if(!name.empty())namedEvents[name]=event;}
     uint32_t handle=nextEventHandle++;eventHandles.emplace(handle,event);ret(handle,4);
 }
-void setEvent(){auto event=eventHandles.find(arg(0));if(event==eventHandles.end()){lastError=6;ret(0,1);return;}event->second->signaled=true;ret(1,1);}
+// SetEvent hands the machine to a thread blocked on the event before the setter goes on, as Windows does on one
+// core (the waiter, of higher priority, runs at once). The game's file service (0x6F788D) raises its worker's
+// priority limit (+0x7C), queues a request, sets the worker's event and puts the limit back: a worker that only
+// looked after the limit was back skipped the request with its event spent, and the loading waited for ever.
+void setEvent(){
+    auto found=eventHandles.find(arg(0));if(found==eventHandles.end()){lastError=6;ret(0,1);return;}
+    auto event=found->second;event->signaled=true;
+    if(event->waiters>0){
+        auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(20);
+        while(event->waiters>0&&(event->manual||event->signaled)&&std::chrono::steady_clock::now()<deadline){checkGuestProgress();yieldGuestMachine();}
+    }
+    ret(1,1);
+}
 void resetEvent(){auto event=eventHandles.find(arg(0));if(event==eventHandles.end()){lastError=6;ret(0,1);return;}event->second->signaled=false;ret(1,1);}
 // ExitThread unwinds the lifted frames back to guestThreadEntry.
 struct GuestThreadExit{uint32_t code;};
@@ -125,6 +138,7 @@ void waitThread(){
     auto thread=found==threadHandles.end()?nullptr:found->second;
     auto event=eventFound==eventHandles.end()?nullptr:eventFound->second;
     auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(timeout);
+    struct Waiting{std::shared_ptr<GuestEvent> e;explicit Waiting(std::shared_ptr<GuestEvent> v):e(std::move(v)){if(e)++e->waiters;}~Waiting(){if(e)--e->waiters;}} waiting(event);
     while(thread?!thread->done:!event->signaled){if(timeout!=UINT32_MAX&&std::chrono::steady_clock::now()>=deadline){ret(258,2);return;}checkGuestProgress();yieldGuestMachine(1);}
     if(event&&!event->manual)event->signaled=false;
     ret(0,2);
@@ -152,6 +166,9 @@ void waitMultiple(){
     }
     auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(timeout);
     WaitScope scope(all?"WaitForMultipleObjects(all)":"WaitForMultipleObjects(any)",handles[0]);
+    std::vector<std::shared_ptr<GuestEvent>> waitedEvents;
+    for(uint32_t handle:handles)if(auto e=eventHandles.find(handle);e!=eventHandles.end()){waitedEvents.push_back(e->second);++e->second->waiters;}
+    struct Leave{std::vector<std::shared_ptr<GuestEvent>>& v;~Leave(){for(auto& e:v)--e->waiters;}} leave{waitedEvents};
     for(;;){
         if(all){
             if(std::all_of(handles.begin(),handles.end(),waitableReady)){
