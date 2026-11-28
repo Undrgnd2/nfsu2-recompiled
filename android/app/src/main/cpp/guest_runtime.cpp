@@ -349,6 +349,15 @@ static void crashHandler(int sig,siginfo_t* info,void* context){
     uint32_t flow=memory&&memory->readable(0x008654a4u,4)?read32(0x008654a4u):0;
     reportLine(fd,"  guest: function %08x, eax %08x ecx %08x edx %08x ebx %08x esp %08x ebp %08x esi %08x edi %08x; flow %u, frames shown %u",
         g_cur_func,g_eax,g_ecx,g_edx,g_ebx,g_esp,g_ebp,g_esi,g_edi,flow,presentCount.load());
+    // The memory the registers point to (the first 0x40 bytes), for the object a fault at a small address read from.
+    const uint32_t regs[6]={g_ecx,g_esi,g_edi,g_ebx,g_eax,g_edx};const char* names[6]={"ecx","esi","edi","ebx","eax","edx"};
+    for(unsigned r=0;r<6;++r){
+        bool seen=false;for(unsigned q=0;q<r;++q)if(regs[q]==regs[r])seen=true;
+        if(seen||regs[r]<0x10000u||!memory||!memory->readable(regs[r],0x40))continue;
+        uint32_t w[16];std::memcpy(w,ptr(regs[r],0x40),0x40);
+        reportLine(fd,"  [%s %08x] %08x %08x %08x %08x %08x %08x %08x %08x",names[r],regs[r],w[0],w[1],w[2],w[3],w[4],w[5],w[6],w[7]);
+        reportLine(fd,"  [%s +20]      %08x %08x %08x %08x %08x %08x %08x %08x",names[r],w[8],w[9],w[10],w[11],w[12],w[13],w[14],w[15]);
+    }
     char callers[260]="";
     for(unsigned i=0,found=0;memory&&i<512&&found<16;++i){
         if(!guestStackReadable(g_esp+i*4))break;

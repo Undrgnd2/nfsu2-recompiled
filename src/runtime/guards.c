@@ -21,7 +21,8 @@
  *  - the traffic driver's destructor (0x5A92F0, thiscall, ret; its vtable 0x7A2144, the base's 0x78427C written at
  *    its end): a crash report of 2026-11-28 01:00 (free roam, address 4 in it, right after a crash into traffic) fits
  *    a traffic driver destroyed twice. A destruction of an object that no longer has the traffic driver's vtable is
- *    skipped and logged with its caller.
+ *    skipped and logged with its caller. Its owned objects (+0x30, +0x38..+0x44, deleted through their vtables) are
+ *    checked first: one that is not an object (a crash report of 2026-11-28 02:17 had one at 4) is dropped and logged.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -107,6 +108,27 @@ void nfs_guard_ov_traffic_dtor(void) {
                  self, self && nfs_guest_readable(self, 4) ? MEM32(self) : 0u, ret);
         g_esp += 4u;                                    /* (ret) */
         return;
+    }
+    /* Its owned objects, each deleted through its vtable's first entry: +0x30 and the 4 at +0x38. A crash report of
+     * 2026-11-28 02:17 (free roam, drift event) faulted at address 4 in here with the object's vtable right: one of
+     * them was 4. One that is not an object (unreadable, or its vtable's first entry outside the game's code) is
+     * dropped (leaked), and the object logged. */
+    static const uint32_t owned[] = { 0x30u, 0x38u, 0x3Cu, 0x40u, 0x44u };
+    for (unsigned i = 0; i < sizeof owned / sizeof owned[0]; ++i) {
+        uint32_t child = MEM32(self + owned[i]), vt = 0, fn = 0;
+        if (!child) continue;
+        if (nfs_guest_readable(child, 4)) vt = MEM32(child);
+        if (vt && nfs_guest_readable(vt, 4)) fn = MEM32(vt);
+        if (fn >= 0x00401000u && fn < 0x00790000u) continue;
+        static unsigned told;
+        if (told++ < 20) {
+            LOGI("Guard: the traffic driver %08x (from %08x) owns at +%02x %08x, not an object (vtable %08x, first %08x): dropped",
+                 self, ret, owned[i], child, vt, fn);
+            for (uint32_t o = 0; o < 0x48u; o += 0x18u)
+                LOGI("Guard:   %08x +%02x: %08x %08x %08x %08x %08x %08x", self, o, MEM32(self + o), MEM32(self + o + 4),
+                     MEM32(self + o + 8), MEM32(self + o + 12), MEM32(self + o + 16), MEM32(self + o + 20));
+        }
+        MEM32(self + owned[i]) = 0;
     }
     sub_005A92F0_orig();
 }
