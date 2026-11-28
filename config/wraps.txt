@@ -66,4 +66,5 @@
 0x0061D790  paint: the car skin composed, the player's own colour as its base paint's (paint.c)
 0x00609CE0  guards: the world's update, skipped while [0x890080] has no world (guards.c)
 0x00440390  guards: the game's allocator bMalloc, a refusal (0) logged with its pool and caller (guards.c)
-0x005F46A0  guards: a car's driver change, skipped for a type past its jump table (guards.c)
+0x005F46A0  guards: a car's driver change, skipped for a type past its jump table or nested in another (guards.c)
+0x005A92F0  guards: the traffic driver's destructor, skipped for an object no longer a traffic driver (guards.c)

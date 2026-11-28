@@ -16,7 +16,12 @@
  *    new driver's +4 (0x5F4905). A type past the table (unsigned > 5) makes none, the write goes to address 4: a crash
  *    report of 2026-11-28 (OnePlus 6T, free roam, a write at guest 00000004 in 0x5F46A0, no allocation refused). The
  *    type is worked out as the function does ([0x8021AC], the +0x5C0 remap to 0 or 4); a change to a type past the
- *    table is skipped (the old driver kept) and logged with its caller.
+ *    table is skipped (the old driver kept) and logged with its caller. A change nested in another change of the same
+ *    driver object (the old driver's teardown asking for one) would delete that old driver twice: skipped and logged;
+ *  - the traffic driver's destructor (0x5A92F0, thiscall, ret; its vtable 0x7A2144, the base's 0x78427C written at
+ *    its end): a crash report of 2026-11-28 01:00 (free roam, address 4 in it, right after a crash into traffic) fits
+ *    a traffic driver destroyed twice. A destruction of an object that no longer has the traffic driver's vtable is
+ *    skipped and logged with its caller.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -29,6 +34,7 @@ int nfs_guest_readable(uint32_t va, uint32_t bytes);
 void sub_00609CE0_orig(void);
 void sub_00440390_orig(void);
 void sub_005F46A0_orig(void);
+void sub_005A92F0_orig(void);
 
 #define G_FLOW    0x008654a4u
 #define G_LOADER  0x008650b8u
@@ -75,6 +81,33 @@ void nfs_guard_ov_driver(void) {
             return;
         }
     }
+    static uint32_t busy[8];
+    static unsigned depth;
+    for (unsigned i = 0; i < depth && i < 8u; ++i)
+        if (busy[i] == self) {
+            static unsigned said;
+            if (said++ < 20)
+                LOGI("Guard: a car's driver change to type %u nested in another for driver %08x (from %08x): skipped", type, self, ret);
+            g_esp += 4u + 4u;
+            return;
+        }
+    if (depth < 8u) busy[depth] = self;
+    ++depth;
     sub_005F46A0_orig();
+    --depth;
+}
+
+/* wraps 0x5A92F0: the traffic driver's destructor, skipped for an object that is no longer one */
+void nfs_guard_ov_traffic_dtor(void) {
+    uint32_t self = g_ecx, ret = MEM32(g_esp);
+    if (!self || !nfs_guest_readable(self, 0x48) || MEM32(self) != 0x007a2144u) {
+        static unsigned said;
+        if (said++ < 20)
+            LOGI("Guard: the traffic driver's destructor on %08x (vtable %08x, from %08x), no longer a traffic driver: skipped",
+                 self, self && nfs_guest_readable(self, 4) ? MEM32(self) : 0u, ret);
+        g_esp += 4u;                                    /* (ret) */
+        return;
+    }
+    sub_005A92F0_orig();
 }
 #endif
