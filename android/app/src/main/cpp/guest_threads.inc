@@ -52,15 +52,26 @@ void createEvent(){
 // priority limit (+0x7C), queues a request, sets the worker's event and puts the limit back: a worker that only
 // looked after the limit was back skipped the request with its event spent, and the loading waited for ever.
 std::atomic<unsigned> setEventHandoffs{0},setEventHandoffTimeouts{0};
+// The hand-over to a thread woken by SetEvent; while the setter holds a critical section it waits until the last one
+// is left (leaveCritical).
+thread_local std::vector<std::shared_ptr<GuestEvent>> pendingHandoffs;
+void handOver(const std::shared_ptr<GuestEvent>& event){
+    if(event->waiters<=0)return;
+    auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(20);
+    while(event->waiters>0&&(event->manual||event->signaled)&&std::chrono::steady_clock::now()<deadline){checkGuestProgress();yieldGuestMachine();}
+    ++setEventHandoffs;if(event->waiters>0&&!event->manual&&event->signaled)++setEventHandoffTimeouts;
+}
+void handOverPending(){
+    while(!pendingHandoffs.empty()){auto event=pendingHandoffs.front();pendingHandoffs.erase(pendingHandoffs.begin());handOver(event);}
+}
 void setEvent(){
     auto found=eventHandles.find(arg(0));if(found==eventHandles.end()){lastError=6;ret(0,1);return;}
     auto event=found->second;event->signaled=true;
-    if(event->waiters>0){
-        auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(20);
-        while(event->waiters>0&&(event->manual||event->signaled)&&std::chrono::steady_clock::now()<deadline){checkGuestProgress();yieldGuestMachine();}
-        ++setEventHandoffs;if(event->waiters>0&&!event->manual&&event->signaled)++setEventHandoffTimeouts;
-    }
     ret(1,1);
+    if(event->waiters>0){
+        if(criticalHeld){if(pendingHandoffs.size()<16)pendingHandoffs.push_back(event);}
+        else{uint32_t eax=g_eax,esp=g_esp;handOver(event);g_eax=eax;g_esp=esp;}
+    }
 }
 void resetEvent(){auto event=eventHandles.find(arg(0));if(event==eventHandles.end()){lastError=6;ret(0,1);return;}event->second->signaled=false;ret(1,1);}
 // ExitThread unwinds the lifted frames back to guestThreadEntry.

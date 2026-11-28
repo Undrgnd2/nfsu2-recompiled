@@ -22,7 +22,12 @@
  *    its end): a crash report of 2026-11-28 01:00 (free roam, address 4 in it, right after a crash into traffic) fits
  *    a traffic driver destroyed twice. A destruction of an object that no longer has the traffic driver's vtable is
  *    skipped and logged with its caller. Its owned objects (+0x30, +0x38..+0x44, deleted through their vtables) are
- *    checked first: one that is not an object (a crash report of 2026-11-28 02:17 had one at 4) is dropped and logged.
+ *    checked first: one that is not an object (a crash report of 2026-11-28 02:17 had one at 4) is dropped and logged;
+ *  - a car's update (0x6012B0, thiscall car, 1 argument the frame's time, ret 4, a float returned): it first calls its
+ *    driver (+0x34) through the driver's vtable (+4). A crash report of 2026-11-28 02:46 (free roam, drift, address 8 in
+ *    it, the registers as at its first call) had a driver whose vtable was gone (4): a driver deleted under the car. A
+ *    driver that is not an object is replaced first by a new one of the car's driver type (+0x28), made by the driver
+ *    change 0x5F46A0 after +0x34 is cleared (so the old one is not deleted again), and logged.
  */
 #ifdef NFS_DRIFT_MODE
 #include "recomp_types.h"
@@ -36,6 +41,8 @@ void sub_00609CE0_orig(void);
 void sub_00440390_orig(void);
 void sub_005F46A0_orig(void);
 void sub_005A92F0_orig(void);
+void sub_006012B0_orig(void);
+uint32_t nfs_guest_call(uint32_t va, uint32_t ecx, const uint32_t *args, unsigned count, unsigned cleanup);
 
 #define G_FLOW    0x008654a4u
 #define G_LOADER  0x008650b8u
@@ -131,5 +138,35 @@ void nfs_guard_ov_traffic_dtor(void) {
         MEM32(self + owned[i]) = 0;
     }
     sub_005A92F0_orig();
+}
+
+/* wraps 0x6012B0: a car's update, its driver made again first when it is not an object */
+static int guest_object(uint32_t obj) {
+    if (obj < 0x10000u || !nfs_guest_readable(obj, 4)) return 0;
+    uint32_t vt = MEM32(obj);
+    if (vt < 0x10000u || !nfs_guest_readable(vt, 8)) return 0;
+    uint32_t fn = MEM32(vt + 4u);
+    return fn >= 0x00401000u && fn < 0x00790000u;
+}
+void nfs_guard_ov_car_update(void) {
+    uint32_t self = g_ecx, ret = MEM32(g_esp);
+    if (self && nfs_guest_readable(self, 0x5c4)) {
+        uint32_t driver = MEM32(self + 0x34u), type = MEM32(self + 0x28u);
+        if (!guest_object(driver) && type <= 5u) {
+            static unsigned said;
+            if (said++ < 20)
+                LOGI("Guard: car %08x (update from %08x) has driver %08x, not an object (first word %08x), type %u: made again",
+                     self, ret, driver, driver >= 0x10000u && nfs_guest_readable(driver, 4) ? MEM32(driver) : 0u, type);
+            MEM32(self + 0x34u) = 0;
+            MEM32(self + 0x28u) = 0xffffffffu;           /* not the type asked for, so the change makes one */
+            nfs_guest_call(0x005F46A0u, self, &type, 1, 0);
+            g_ecx = self;
+            if (!guest_object(MEM32(self + 0x34u))) {
+                if (said < 40) { ++said; LOGI("Guard: car %08x: no driver could be made (type %u)", self, type); }
+                MEM32(self + 0x28u) = type;
+            }
+        }
+    }
+    sub_006012B0_orig();
 }
 #endif

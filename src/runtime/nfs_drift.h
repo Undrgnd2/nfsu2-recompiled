@@ -145,6 +145,7 @@ void nfs_paint_draw_end(void);
 void nfs_look_stick(int x, int y);          /* any thread: the touch controls' look stick, thousandths (x + right, y + up) */
 void nfs_look_view(uint32_t view);          /* photo.c's 0x5C7EC0 wrap: the camera turned round the car */
 void nfs_look_frame(void);
+void nfs_guard_ov_car_update(void);        /* guards.c: wraps 0x6012B0, a car's update, its driver made again when broken */
 void nfs_guard_ov_traffic_dtor(void);       /* guards.c: wraps 0x5A92F0, the traffic driver's destructor, skipped when done already */
 void nfs_guard_ov_driver(void);              /* guards.c: wraps 0x5F46A0, a car's driver change to no such type, skipped */
 void nfs_guard_ov_bmalloc(void);             /* guards.c: wraps 0x440390, a refusal logged */

@@ -157,6 +157,13 @@ public:
 MachineMutex machine;
 thread_local std::unique_lock<MachineMutex>* machineLease=nullptr;
 thread_local uint32_t guestThreadId=1;
+// Critical sections this guest thread holds (outermost entries). A thread is not preempted at the end of its time
+// slice while it holds one (for 20 ms more at most), and its SetEvent hand-overs wait until it holds none: a thread
+// handed over or preempted inside a critical section let another take a second one first, and the two deadlocked
+// (a frozen-screen report of 2026-11-28 02:34: thread 1 holding 00864f00 and waiting for 1080e438, thread 6 the
+// other way round). On the single core the game was made for, a woken thread with more priority preempts on its own
+// terms; the lock order then holds.
+thread_local unsigned criticalHeld=0;
 std::vector<Import> imports;
 std::map<std::string,uint32_t> modules;
 thread_local uint32_t lastError=0;
@@ -432,6 +439,7 @@ void checkGuestProgress() {
         auto now=std::chrono::steady_clock::now();
         if(now>bootDeadline)throw GuestStop("CRT bring-up time budget reached at "+hex(g_cur_func));
         auto slice=renderThread?std::chrono::microseconds(3000):std::chrono::microseconds(500);
+        if(criticalHeld&&now-machine.acquired<slice+std::chrono::milliseconds(20))slice+=std::chrono::milliseconds(20);
         if(now-machine.acquired>=slice&&machine.hasWaiters()){
             yieldGuestMachine();
             if(renderThread){++renderYields;renderWait+=std::chrono::steady_clock::now()-now;}

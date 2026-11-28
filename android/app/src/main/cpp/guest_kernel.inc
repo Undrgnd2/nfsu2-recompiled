@@ -55,7 +55,7 @@ void enterCritical() {
     cs=criticalSections.find(address);
     if(cs==criticalSections.end()||cs->second!=mutex){mutex->unlock();throw GuestStop("Critical section deleted while waiting");}
     auto count=read32(address+8)+1; write32(address+8,count); write32(address+4,count-1); write32(address+12,guestThreadId);
-    if(count==1)currentTrace().hold(address);
+    if(count==1){currentTrace().hold(address);++criticalHeld;}
     ret(0,1);
 }
 void leaveCritical() {
@@ -64,6 +64,7 @@ void leaveCritical() {
     write32(address+8,--count);write32(address+4,count-1);if(!count){write32(address+12,0);currentTrace().release(address);}cs->second->unlock();
     if(!count&&pendingCriticalDeletes.erase(address))criticalSections.erase(cs);
     ret(0,1);
+    if(!count&&criticalHeld&&!--criticalHeld&&!pendingHandoffs.empty()){uint32_t eax=g_eax,esp=g_esp;handOverPending();g_eax=eax;g_esp=esp;}
 }
 void deleteCritical() {
     uint32_t address=arg(0);
