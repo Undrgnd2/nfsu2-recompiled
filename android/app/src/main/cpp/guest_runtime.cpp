@@ -475,11 +475,48 @@ void moduleHandle() {
 void heapCreate() {
     ret(heaps->create(arg(0),arg(1),arg(2)),3);
 }
-void heapAlloc() { ret(heaps->alloc(arg(0),arg(1),arg(2)),3); }
-void heapFree() { ret(heaps->free(arg(0),arg(2)),3); }
+// HeapFree is delayed: a freed block waits in a quarantine (the last 16384 frees, 64 MB at most) before the heap may
+// hand it out again, so a stale pointer that still writes to it (the game's own or a mod's) writes to nothing anyone
+// uses instead of to the next object made there (crash reports of 2026-11-28: cars' driver objects found broken,
+// addresses 4 and 8, after free-roam crashes). A block up to 4 KB has its bytes hashed when freed and checked when
+// released: a write after the free is logged with the block (the first ones). Blocks over 1 MB are freed at once; an
+// allocation the heap refuses empties the quarantine and is tried again.
+struct QuarantinedBlock{uint32_t heap,address,bytes;uint64_t hash;};
+static std::deque<QuarantinedBlock> quarantine;
+static uint64_t quarantineBytes=0;
+static unsigned quarantineWrites=0;
+static uint64_t quarantineHash(uint32_t address,uint32_t bytes){
+    uint64_t h=1469598103934665603ull;const uint8_t* b=static_cast<const uint8_t*>(ptr(address,bytes));
+    for(uint32_t i=0;i<bytes;++i){h^=b[i];h*=1099511628211ull;}
+    return h;
+}
+static void releaseOldestQuarantined(){
+    QuarantinedBlock q=quarantine.front();quarantine.pop_front();quarantineBytes-=q.bytes;
+    if(q.bytes<=4096u&&quarantineHash(q.address,q.bytes)!=q.hash&&quarantineWrites++<20){
+        uint32_t w[4]={};std::memcpy(w,ptr(q.address,std::min(q.bytes,16u)),std::min(q.bytes,16u));
+        NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSU2","Guest heap: block %08x (%u bytes) written after it was freed (now %08x %08x %08x %08x)",
+            q.address,q.bytes,w[0],w[1],w[2],w[3]);
+    }
+    heaps->free(q.heap,q.address);
+}
+void heapAlloc() {
+    uint32_t p=heaps->alloc(arg(0),arg(1),arg(2));
+    if(!p&&!quarantine.empty()){while(!quarantine.empty())releaseOldestQuarantined();p=heaps->alloc(arg(0),arg(1),arg(2));}
+    ret(p,3);
+}
+void heapFree() {
+    uint32_t heap=arg(0),address=arg(2),bytes=address?heaps->size(heap,address):0;
+    if(!bytes||bytes>(1u<<20)){ret(heaps->free(heap,address),3);return;}
+    quarantine.push_back({heap,address,bytes,bytes<=4096u?quarantineHash(address,bytes):0});quarantineBytes+=bytes;
+    while(quarantine.size()>16384u||quarantineBytes>(64ull<<20))releaseOldestQuarantined();
+    ret(1,3);
+}
 void heapRealloc() { ret(heaps->realloc(arg(0),arg(1),arg(2),arg(3)),4); }
 void heapSize() { ret(heaps->size(arg(0),arg(2)),3); }
-void heapDestroy() { ret(heaps->destroy(arg(0)),1); }
+void heapDestroy() {
+    for(auto it=quarantine.begin();it!=quarantine.end();)if(it->heap==arg(0)){quarantineBytes-=it->bytes;it=quarantine.erase(it);}else ++it;
+    ret(heaps->destroy(arg(0)),1);
+}
 void getProcessHeap() { ret(GuestHeaps::process,0); }
 void getProcAddress();
 #if defined(__ANDROID__) || defined(NFS_D3D9_BACKEND)
