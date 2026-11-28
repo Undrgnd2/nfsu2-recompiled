@@ -51,12 +51,14 @@ void createEvent(){
 // core (the waiter, of higher priority, runs at once). The game's file service (0x6F788D) raises its worker's
 // priority limit (+0x7C), queues a request, sets the worker's event and puts the limit back: a worker that only
 // looked after the limit was back skipped the request with its event spent, and the loading waited for ever.
+std::atomic<unsigned> setEventHandoffs{0},setEventHandoffTimeouts{0};
 void setEvent(){
     auto found=eventHandles.find(arg(0));if(found==eventHandles.end()){lastError=6;ret(0,1);return;}
     auto event=found->second;event->signaled=true;
     if(event->waiters>0){
         auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(20);
         while(event->waiters>0&&(event->manual||event->signaled)&&std::chrono::steady_clock::now()<deadline){checkGuestProgress();yieldGuestMachine();}
+        ++setEventHandoffs;if(event->waiters>0&&!event->manual&&event->signaled)++setEventHandoffTimeouts;
     }
     ret(1,1);
 }

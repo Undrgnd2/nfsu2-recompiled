@@ -213,6 +213,7 @@ static void noteGuestFile(const char* name){
 // The loading-stall profile: which lifted functions the presenting thread keeps entering while the loading is
 // stuck (checkGuestProgress samples g_cur_func on loop back edges and imports for a few seconds).
 static void reportLine(int fd,const char* fmt,...);
+static void dumpGuestSync(int fd);  // after guest_threads.inc: the events and the file service's state
 static std::atomic<bool> stallProfiling{false};
 static uint32_t stallSampleVa[1024],stallSampleHits[1024],stallSampleTotal;
 static void stallSample(uint32_t va){
@@ -290,6 +291,7 @@ void startStallWatch(){
                 reportLine(fd,"Guest loading stall: still loading, no file opened for %lld s, frames shown %u; guest threads:",static_cast<long long>(fileIdle/1000),presentCount.load());
                 dumpGuestThreads(fd);
                 stallProfile(fd);
+                dumpGuestSync(fd);
                 if(fd>=0)close(fd);
                 continue;
             }
@@ -544,6 +546,27 @@ inline uint32_t callGuest(uint32_t va,const std::vector<uint32_t>& args,uint32_t
 #include "guest_input.inc"
 #include "guest_audio.inc"
 #include "guest_network.inc"
+// Stall report: every guest event (signaled, waiters) and the game's file service state, read with the machine held.
+static void dumpGuestSync(int fd){
+    std::unique_lock<MachineMutex> lease(machine);
+    reportLine(fd,"SetEvent hand-overs %u (%u gave up after 20 ms); events:",setEventHandoffs.load(),setEventHandoffTimeouts.load());
+    char line[1000]="";
+    for(auto& [handle,event]:eventHandles){
+        size_t l=strlen(line);snprintf(line+l,sizeof line-l," %08x:%c%c%d",handle,event->manual?'M':'a',event->signaled?'S':'-',event->waiters);
+        if(strlen(line)>900){reportLine(fd," %s",line);line[0]=0;}
+    }
+    if(line[0])reportLine(fd," %s",line);
+    auto words=[&](const char* what,uint32_t va,uint32_t bytes){
+        if(!va||!memory||!memory->readable(va,bytes)){reportLine(fd,"%s %08x: not readable",what,va);return;}
+        for(uint32_t o=0;o<bytes;o+=0x40){char b[600];int n=snprintf(b,sizeof b,"%s %08x+%03x:",what,va,o);
+            for(uint32_t k=o;k<o+0x40&&k<bytes;k+=4)n+=snprintf(b+n,sizeof b-n," %08x",read32(va+k));
+            reportLine(fd,"%s",b);}
+    };
+    words("File service globals",0x008ad600u,0xb0u);
+    uint32_t svc=memory&&memory->readable(0x008ad610u,4)?read32(0x008ad610u):0;
+    words("File service",svc,0xa0u);
+    if(svc&&memory->readable(svc+0x98u,4))words("File workers",read32(svc+0x98u),0x84u*3u);
+}
 void testGuestScheduling(){
     State original;original.save();uint32_t savedError=lastError,savedTLS=tlsValues[1087];
     g_eax=0x11223344;g_fs_base=0x21000000;g_st[0]=123.5;g_xmm[7].u64[0]=0x123456789abcdef0ull;
