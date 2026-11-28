@@ -354,7 +354,7 @@ static void crashHandler(int sig,siginfo_t* info,void* context){
     for(unsigned r=0;r<6;++r){
         bool seen=false;for(unsigned q=0;q<r;++q)if(regs[q]==regs[r])seen=true;
         if(seen||regs[r]<0x10000u||!memory||!memory->readable(regs[r],0x40))continue;
-        uint32_t w[16];std::memcpy(w,ptr(regs[r],0x40),0x40);
+        uint32_t w[16];std::memcpy(w,memory->address(regs[r],0x40),0x40);
         reportLine(fd,"  [%s %08x] %08x %08x %08x %08x %08x %08x %08x %08x",names[r],regs[r],w[0],w[1],w[2],w[3],w[4],w[5],w[6],w[7]);
         reportLine(fd,"  [%s +20]      %08x %08x %08x %08x %08x %08x %08x %08x",names[r],w[8],w[9],w[10],w[11],w[12],w[13],w[14],w[15]);
     }
